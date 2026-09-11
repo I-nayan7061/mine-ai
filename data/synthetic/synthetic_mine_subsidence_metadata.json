@@ -1,0 +1,39 @@
+{
+  "project": "Mine Subsidence AI (SIH26025)",
+  "data_type": "SYNTHETIC",
+  "description": "Physics-grounded synthetic geotechnical sensor stream modeling underground coal mine strata deformation across multiple operational cycles.",
+  "sensors": {
+    "vibration": "Simulated MPU6050 accelerometer magnitude (g), nominal RMS ~0.05g ambient",
+    "tilt": "Simulated MPU6050 dual-axis inclinometer (tilt_x, tilt_y in degrees)",
+    "displacement": "Simulated VL53L1X Time-of-Flight convergence measurement (mm)"
+  },
+  "sampling_frequency_hz": 1.0,
+  "units": {
+    "tilt_x": "degrees",
+    "tilt_y": "degrees",
+    "vibration": "g (acceleration)",
+    "displacement_mm": "millimeters"
+  },
+  "limitations": "Generated via physical geotechnical differential equations; must be recalibrated with in-situ field sensor measurements.",
+  "intended_use": "Model training, anomaly detection benchmark, algorithm comparison, and unit/scenario verification.",
+  "total_records": 40000,
+  "num_cycles": 4,
+  "num_nodes": 5,
+  "nodes": [
+    "N01",
+    "N02",
+    "N03",
+    "N04",
+    "N05"
+  ],
+  "class_distribution": {
+    "NORMAL": 18000,
+    "WARNING": 9200,
+    "HIGH": 8000,
+    "CRITICAL": 4800
+  },
+  "time_range": {
+    "start": "2026-09-10 06:00:00",
+    "end": "2026-09-10 08:19:19"
+  }
+}

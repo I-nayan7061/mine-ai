@@ -1,0 +1,290 @@
+{
+  "dataset": {
+    "total_windows": 4045,
+    "train_windows": 2427,
+    "val_windows": 809,
+    "test_windows": 809,
+    "num_selected_features": 30,
+    "selected_features": [
+      "spatial_disp_gradient_max",
+      "tilt_x_current",
+      "vib_mean",
+      "vib_variance",
+      "vib_std",
+      "spatial_avg_neighbor_disp",
+      "spatial_avg_neighbor_risk",
+      "tilt_mag_std",
+      "vib_min",
+      "tilt_trend_r2",
+      "disp_trend_r2",
+      "spatial_num_abnormal_neighbors",
+      "tilt_accel_max",
+      "tilt_stability_index",
+      "spatial_pct_abnormal_neighbors",
+      "tilt_rate_max",
+      "disp_accel_max",
+      "disp_rate_max",
+      "vib_cov",
+      "vib_skewness",
+      "disp_stability_index",
+      "vib_crest_factor",
+      "vib_kurtosis",
+      "vib_spectral_energy_mid",
+      "vib_dominant_frequency",
+      "vib_spectral_centroid",
+      "vib_spectral_energy_low",
+      "vib_spectral_energy_high",
+      "vib_spectral_entropy",
+      "vib_second_dominant_frequency"
+    ]
+  },
+  "anomaly_detector": {
+    "model_type": "isolation_forest",
+    "contamination": 0.08,
+    "test_concordance_accuracy": 0.9271
+  },
+  "benchmark_comparison": [
+    {
+      "model_type": "logistic_regression",
+      "accuracy": 0.9617,
+      "weighted_precision": 0.9624,
+      "weighted_recall": 0.9617,
+      "weighted_f1": 0.9618,
+      "high_recall": 0.9742,
+      "critical_recall": 0.982,
+      "inference_time_ms_per_sample": 0.004,
+      "per_class_recalls": {
+        "NORMAL_recall": 0.967741935483871,
+        "WARNING_recall": 0.9333333333333333,
+        "HIGH_recall": 0.9742268041237113,
+        "CRITICAL_recall": 0.9819819819819819
+      },
+      "confusion_matrix": [
+        [
+          270,
+          8,
+          1,
+          0
+        ],
+        [
+          2,
+          210,
+          13,
+          0
+        ],
+        [
+          0,
+          3,
+          189,
+          2
+        ],
+        [
+          0,
+          0,
+          2,
+          109
+        ]
+      ],
+      "class_names": [
+        "NORMAL",
+        "WARNING",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    {
+      "model_type": "decision_tree",
+      "accuracy": 0.9283,
+      "weighted_precision": 0.9299,
+      "weighted_recall": 0.9283,
+      "weighted_f1": 0.9288,
+      "high_recall": 0.9433,
+      "critical_recall": 0.991,
+      "inference_time_ms_per_sample": 0.004,
+      "per_class_recalls": {
+        "NORMAL_recall": 0.9139784946236559,
+        "WARNING_recall": 0.9022222222222223,
+        "HIGH_recall": 0.9432989690721649,
+        "CRITICAL_recall": 0.990990990990991
+      },
+      "confusion_matrix": [
+        [
+          255,
+          24,
+          0,
+          0
+        ],
+        [
+          14,
+          203,
+          8,
+          0
+        ],
+        [
+          0,
+          11,
+          183,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          110
+        ]
+      ],
+      "class_names": [
+        "NORMAL",
+        "WARNING",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    {
+      "model_type": "random_forest",
+      "accuracy": 0.9629,
+      "weighted_precision": 0.9642,
+      "weighted_recall": 0.9629,
+      "weighted_f1": 0.9632,
+      "high_recall": 0.9742,
+      "critical_recall": 1.0,
+      "inference_time_ms_per_sample": 0.11,
+      "per_class_recalls": {
+        "NORMAL_recall": 0.942652329749104,
+        "WARNING_recall": 0.96,
+        "HIGH_recall": 0.9742268041237113,
+        "CRITICAL_recall": 1.0
+      },
+      "confusion_matrix": [
+        [
+          263,
+          16,
+          0,
+          0
+        ],
+        [
+          2,
+          216,
+          7,
+          0
+        ],
+        [
+          0,
+          5,
+          189,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          111
+        ]
+      ],
+      "class_names": [
+        "NORMAL",
+        "WARNING",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    {
+      "model_type": "xgboost",
+      "accuracy": 0.9938,
+      "weighted_precision": 0.9938,
+      "weighted_recall": 0.9938,
+      "weighted_f1": 0.9938,
+      "high_recall": 0.9897,
+      "critical_recall": 1.0,
+      "inference_time_ms_per_sample": 0.027,
+      "per_class_recalls": {
+        "NORMAL_recall": 0.996415770609319,
+        "WARNING_recall": 0.9911111111111112,
+        "HIGH_recall": 0.9896907216494846,
+        "CRITICAL_recall": 1.0
+      },
+      "confusion_matrix": [
+        [
+          278,
+          1,
+          0,
+          0
+        ],
+        [
+          2,
+          223,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          192,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          111
+        ]
+      ],
+      "class_names": [
+        "NORMAL",
+        "WARNING",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    {
+      "model_type": "lightgbm",
+      "accuracy": 0.9901,
+      "weighted_precision": 0.9903,
+      "weighted_recall": 0.9901,
+      "weighted_f1": 0.9901,
+      "high_recall": 0.9948,
+      "critical_recall": 1.0,
+      "inference_time_ms_per_sample": 0.015,
+      "per_class_recalls": {
+        "NORMAL_recall": 1.0,
+        "WARNING_recall": 0.9688888888888889,
+        "HIGH_recall": 0.9948453608247423,
+        "CRITICAL_recall": 1.0
+      },
+      "confusion_matrix": [
+        [
+          279,
+          0,
+          0,
+          0
+        ],
+        [
+          7,
+          218,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          193,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          111
+        ]
+      ],
+      "class_names": [
+        "NORMAL",
+        "WARNING",
+        "HIGH",
+        "CRITICAL"
+      ]
+    }
+  ],
+  "selected_primary_model": "random_forest",
+  "selected_advanced_model": "xgboost"
+}

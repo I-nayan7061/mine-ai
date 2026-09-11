@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mine Subsidence AI Early Warning System | SIH 2026</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-badge">SIH26025</div>
+        <div>
+          <h1>NexGen Mine Subsidence AI</h1>
+          <p class="subtitle">AI-Enabled Real-Time Strata Monitoring, Prediction & Early Warning System</p>
+        </div>
+      </div>
+      <div class="system-status-container">
+        <div class="stat-pill" id="fleet-status-pill">
+          <span class="status-dot green"></span>
+          <span id="fleet-status-text">SYSTEM NORMAL</span>
+        </div>
+        <div class="time-box">
+          <span id="live-clock">--:--:--</span>
+          <small>COAL SEAM SECTOR-4</small>
+        </div>
+      </div>
+    </header>
+
+    <!-- Top KPI Banner -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-label">Highest Risk Score</span>
+        <div class="kpi-value-row">
+          <span class="kpi-number" id="kpi-max-risk">12.4</span>
+          <span class="kpi-unit">/ 100</span>
+        </div>
+        <span class="kpi-subtext" id="kpi-max-risk-node">Node N01</span>
+      </div>
+
+      <div class="kpi-card">
+        <span class="kpi-label">Active Monitoring Nodes</span>
+        <div class="kpi-value-row">
+          <span class="kpi-number" id="kpi-active-nodes">5</span>
+          <span class="kpi-unit">Online</span>
+        </div>
+        <span class="kpi-subtext">LoRa Mesh Network</span>
+      </div>
+
+      <div class="kpi-card">
+        <span class="kpi-label">Anomaly Status</span>
+        <div class="kpi-value-row">
+          <span class="kpi-number" id="kpi-anomaly-status">NORMAL</span>
+        </div>
+        <span class="kpi-subtext">Isolation Forest (Unsupervised)</span>
+      </div>
+
+      <div class="kpi-card">
+        <span class="kpi-label">Primary AI Model</span>
+        <div class="kpi-value-row">
+          <span class="kpi-number highlight">XGBoost</span>
+        </div>
+        <span class="kpi-subtext">100% Critical Recall Validated</span>
+      </div>
+    </div>
+
+    <!-- Main Workspace Layout -->
+    <main class="dashboard-grid">
+      <!-- Left Column: Spatial Gallery Map & Scenario Injector -->
+      <section class="panel map-panel">
+        <div class="panel-header">
+          <h2>Underground Mine Gallery Topology</h2>
+          <span class="badge">Spatial Multi-Node Graph</span>
+        </div>
+        <div class="map-container">
+          <svg id="mine-gallery-svg" viewBox="0 0 500 320">
+            <!-- Gallery Tunnels -->
+            <rect x="40" y="40" width="420" height="60" rx="6" class="tunnel-path" />
+            <text x="60" y="75" class="tunnel-label">Gallery-North-1 (Main Intake & Haulage)</text>
+
+            <rect x="40" y="200" width="420" height="60" rx="6" class="tunnel-path" />
+            <text x="60" y="235" class="tunnel-label">Gallery-Crosscut-2 (Goaf & Return)</text>
+
+            <!-- Crosscut link -->
+            <rect x="230" y="100" width="60" height="100" rx="4" class="tunnel-link" />
+            <rect x="380" y="100" width="60" height="100" rx="4" class="tunnel-link" />
+
+            <!-- Edge connections -->
+            <line x1="80" y1="70" x2="260" y2="70" class="graph-edge" />
+            <line x1="260" y1="70" x2="410" y2="70" class="graph-edge" />
+            <line x1="410" y1="70" x2="410" y2="230" class="graph-edge" />
+            <line x1="410" y1="230" x2="260" y2="230" class="graph-edge" />
+            <line x1="260" y1="70" x2="260" y2="230" class="graph-edge" />
+
+            <!-- Nodes -->
+            <g id="node-marker-N01" class="node-group" onclick="selectNode('N01')">
+              <circle cx="80" cy="70" r="18" class="node-circle normal" />
+              <text x="80" y="74" class="node-text">N01</text>
+            </g>
+            <g id="node-marker-N02" class="node-group" onclick="selectNode('N02')">
+              <circle cx="260" cy="70" r="18" class="node-circle normal" />
+              <text x="260" y="74" class="node-text">N02</text>
+            </g>
+            <g id="node-marker-N03" class="node-group" onclick="selectNode('N03')">
+              <circle cx="410" cy="70" r="22" class="node-circle normal pulse" />
+              <text x="410" y="74" class="node-text">N03*</text>
+            </g>
+            <g id="node-marker-N04" class="node-group" onclick="selectNode('N04')">
+              <circle cx="410" cy="230" r="18" class="node-circle normal" />
+              <text x="410" y="234" class="node-text">N04</text>
+            </g>
+            <g id="node-marker-N05" class="node-group" onclick="selectNode('N05')">
+              <circle cx="260" cy="230" r="18" class="node-circle normal" />
+              <text x="260" y="234" class="node-text">N05</text>
+            </g>
+          </svg>
+          <div class="map-legend">
+            <span><span class="dot green"></span> Normal</span>
+            <span><span class="dot yellow"></span> Warning</span>
+            <span><span class="dot orange"></span> High</span>
+            <span><span class="dot red"></span> Critical</span>
+            <small>* N03: Active Longwall Face</small>
+          </div>
+        </div>
+
+        <!-- Demonstration Scenario Injector -->
+        <div class="simulation-controller">
+          <h3>Live Geotechnical Scenario Injector</h3>
+          <p class="desc">Inject simulated continuous strata dynamics directly into the AI pipeline:</p>
+          <div class="scenario-buttons">
+            <button class="btn btn-normal" onclick="triggerScenario('normal')">1. Normal Ambient</button>
+            <button class="btn btn-warning" onclick="triggerScenario('warning')">2. Slow Roof Sag</button>
+            <button class="btn btn-high" onclick="triggerScenario('high_risk')">3. Bed Separation (High)</button>
+            <button class="btn btn-critical" onclick="triggerScenario('critical')">4. Dynamic Fracture (Critical)</button>
+            <button class="btn btn-noise" onclick="triggerScenario('transient_noise')">5. Blasting Noise (False Alarm)</button>
+          </div>
+          <div class="sim-status-bar">
+            <span>Simulation State: <strong id="sim-state">IDLE</strong></span>
+            <button class="btn-sm" onclick="stopSimulation()">Stop Simulation</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Center/Right Column: Live Charts & Selected Node Diagnosis -->
+      <section class="panel telemetry-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Real-Time Telemetry: <span id="selected-node-title">Node N03</span></h2>
+            <p class="subtext">Sensing Parameters: Vibration (MPU6050) | Dual-Axis Tilt (MPU6050) | Displacement (VL53L1X)</p>
+          </div>
+          <div class="node-badge" id="selected-node-badge">STATUS: NORMAL (Score: 12.0)</div>
+        </div>
+
+        <!-- Instantaneous Metrics Ribbon -->
+        <div class="mini-metrics-row">
+          <div class="mini-metric">
+            <span class="label">Vibration</span>
+            <span class="val" id="val-vib">0.038 g</span>
+          </div>
+          <div class="mini-metric">
+            <span class="label">Tilt X / Y</span>
+            <span class="val" id="val-tilt">0.12° / 0.09°</span>
+          </div>
+          <div class="mini-metric">
+            <span class="label">Displacement</span>
+            <span class="val" id="val-disp">1.02 mm</span>
+          </div>
+          <div class="mini-metric">
+            <span class="label">Deformation Rate</span>
+            <span class="val" id="val-rate">0.01 mm/min</span>
+          </div>
+          <div class="mini-metric">
+            <span class="label">Spatial Neighbours</span>
+            <span class="val" id="val-neighbors">0 Abnormal</span>
+          </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+          <div class="chart-box">
+            <canvas id="chart-displacement"></canvas>
+          </div>
+          <div class="chart-box">
+            <canvas id="chart-tilt"></canvas>
+          </div>
+          <div class="chart-box">
+            <canvas id="chart-vibration"></canvas>
+          </div>
+          <div class="chart-box">
+            <canvas id="chart-risk"></canvas>
+          </div>
+        </div>
+
+        <!-- Explainable AI (XAI) Root Cause Diagnosis -->
+        <div class="xai-container">
+          <div class="xai-header">
+            <h3>Explainable AI (SHAP Geotechnical Factor Attribution)</h3>
+            <span class="confidence-tag">Model Confidence: <strong id="val-confidence">98.4%</strong></span>
+          </div>
+          <div class="xai-content" id="xai-factors-container">
+            <div class="xai-empty">Awaiting elevated risk to display SHAP contributing factor attribution...</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Alert Log -->
+    <footer class="alert-drawer">
+      <div class="drawer-header">
+        <h3>Early Warning Alert Feed</h3>
+        <span class="badge" id="alert-count-badge">0 Active Alerts</span>
+      </div>
+      <div class="alert-table-container">
+        <table class="alert-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Node</th>
+              <th>Severity</th>
+              <th>Risk Score</th>
+              <th>Primary Geotechnical Diagnostic Reason</th>
+            </tr>
+          </thead>
+          <tbody id="alert-tbody">
+            <tr>
+              <td colspan="5" class="empty-table">No critical strata anomalies recorded. All galleries stable.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

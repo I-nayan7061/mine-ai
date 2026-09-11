@@ -1,0 +1,79 @@
+{
+  "description": "Preprocessed rolling-window feature dataset for underground mine strata risk classification and anomaly detection.",
+  "window_size_seconds": 60,
+  "step_size_seconds": 10,
+  "sampling_rate_hz": 1.0,
+  "total_windows": 4045,
+  "feature_count": 30,
+  "selected_features": [
+    "spatial_disp_gradient_max",
+    "tilt_x_current",
+    "vib_mean",
+    "vib_variance",
+    "vib_std",
+    "spatial_avg_neighbor_disp",
+    "spatial_avg_neighbor_risk",
+    "tilt_mag_std",
+    "vib_min",
+    "tilt_trend_r2",
+    "disp_trend_r2",
+    "spatial_num_abnormal_neighbors",
+    "tilt_accel_max",
+    "tilt_stability_index",
+    "spatial_pct_abnormal_neighbors",
+    "tilt_rate_max",
+    "disp_accel_max",
+    "disp_rate_max",
+    "vib_cov",
+    "vib_skewness",
+    "disp_stability_index",
+    "vib_crest_factor",
+    "vib_kurtosis",
+    "vib_spectral_energy_mid",
+    "vib_dominant_frequency",
+    "vib_spectral_centroid",
+    "vib_spectral_energy_low",
+    "vib_spectral_energy_high",
+    "vib_spectral_entropy",
+    "vib_second_dominant_frequency"
+  ],
+  "target_classes": [
+    "NORMAL",
+    "WARNING",
+    "HIGH",
+    "CRITICAL"
+  ],
+  "splits": {
+    "train": {
+      "records": 2427,
+      "file": "train_features.csv",
+      "class_distribution": {
+        "NORMAL": 1284,
+        "WARNING": 473,
+        "HIGH": 412,
+        "CRITICAL": 258
+      }
+    },
+    "val": {
+      "records": 809,
+      "file": "val_features.csv",
+      "class_distribution": {
+        "NORMAL": 272,
+        "HIGH": 206,
+        "WARNING": 202,
+        "CRITICAL": 129
+      }
+    },
+    "test": {
+      "records": 809,
+      "file": "test_features.csv",
+      "class_distribution": {
+        "NORMAL": 279,
+        "WARNING": 225,
+        "HIGH": 194,
+        "CRITICAL": 111
+      }
+    }
+  },
+  "created_at": "2026-09-10T09:59:05.231893"
+}

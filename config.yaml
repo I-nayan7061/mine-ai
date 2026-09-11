@@ -1,0 +1,140 @@
+system:
+  project_name: "Mine-Subsidence-AI-NexGen"
+  version: "1.0.0"
+  problem_id: "SIH26025"
+  random_seed: 42
+  environment: "prototype"
+
+data:
+  nominal_sampling_rate_hz: 1.0
+  expected_columns:
+    - timestamp
+    - node_id
+    - tilt_x
+    - tilt_y
+    - vibration
+    - displacement_mm
+  optional_columns:
+    - accel_x
+    - accel_y
+    - accel_z
+    - gyro_x
+    - gyro_y
+    - gyro_z
+    - battery_voltage
+    - signal_quality
+  sensor_bounds:
+    tilt_x: [-90.0, 90.0]
+    tilt_y: [-90.0, 90.0]
+    vibration: [0.0, 10.0]
+    displacement_mm: [-100.0, 2000.0]
+
+preprocessing:
+  window_size_seconds: 60
+  step_size_seconds: 10
+  min_samples_per_window: 10
+  max_missing_interpolation_gap: 5
+  outlier_z_threshold: 4.5
+  filter_type: "median"  # 'median' or 'butterworth'
+  filter_window: 5
+
+features:
+  max_features_selected: 30
+  vibration:
+    time_domain: true
+    frequency_domain: true
+    fft_sampling_rate: 1.0
+  tilt:
+    include_angular_acceleration: true
+    include_trends: true
+  displacement:
+    include_velocity: true
+    include_acceleration: true
+    include_cumulative: true
+  spatial:
+    include_neighbor_metrics: true
+    spatial_epsilon: 0.1
+
+spatial_graph:
+  nodes:
+    N01: { x: 0.0, y: 0.0, gallery: "Gallery-North-1", description: "Main haulage intake" }
+    N02: { x: 25.0, y: 0.0, gallery: "Gallery-North-1", description: "Pillar intersection A" }
+    N03: { x: 50.0, y: 0.0, gallery: "Gallery-North-1", description: "Active longwall face" }
+    N04: { x: 50.0, y: 30.0, gallery: "Gallery-Crosscut-2", description: "Return airway crosscut" }
+    N05: { x: 25.0, y: 30.0, gallery: "Gallery-Crosscut-2", description: "Goaf boundary panel" }
+  connections:
+    - ["N01", "N02"]
+    - ["N02", "N03"]
+    - ["N03", "N04"]
+    - ["N04", "N05"]
+    - ["N02", "N05"]
+
+anomaly_detection:
+  model_type: "isolation_forest"
+  contamination: 0.08
+  n_estimators: 150
+  max_samples: "auto"
+  baseline_zscore_threshold: 3.0
+
+classification:
+  target_classes:
+    - NORMAL
+    - WARNING
+    - HIGH
+    - CRITICAL
+  models:
+    - "logistic_regression"
+    - "decision_tree"
+    - "random_forest"
+    - "xgboost"
+    - "lightgbm"
+  primary_model: "random_forest"
+  advanced_model: "xgboost"
+  hyperparameters:
+    random_forest:
+      n_estimators: 120
+      max_depth: 12
+      min_samples_split: 4
+      class_weight: "balanced"
+      random_state: 42
+    xgboost:
+      n_estimators: 120
+      max_depth: 6
+      learning_rate: 0.08
+      subsample: 0.85
+      random_state: 42
+
+risk_engine:
+  weights:
+    vibration: 0.15
+    tilt: 0.20
+    displacement: 0.25
+    anomaly: 0.20
+    temporal: 0.10
+    spatial: 0.10
+  thresholds:
+    normal_max: 24.9
+    warning_max: 49.9
+    high_max: 74.9
+    critical_min: 75.0
+  severity_scale_params:
+    vibration_nominal_rms: 0.10
+    vibration_critical_rms: 2.0
+    tilt_nominal_deg: 0.50
+    tilt_critical_deg: 5.0
+    displacement_rate_nominal: 0.02   # mm/min
+    displacement_rate_critical: 1.50  # mm/min
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  buffer_capacity_per_node: 300
+  cors_origins: ["*"]
+
+paths:
+  data_raw: "mine-ai/data/raw"
+  data_processed: "mine-ai/data/processed"
+  data_synthetic: "mine-ai/data/synthetic"
+  data_external: "mine-ai/data/external"
+  models_dir: "mine-ai/models"
+  config_file: "mine-ai/config.yaml"
