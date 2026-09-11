@@ -39,7 +39,7 @@ preprocessing:
   filter_window: 5
 
 features:
-  max_features_selected: 30
+  max_features_selected: 36
   vibration:
     time_domain: true
     frequency_domain: true
@@ -106,11 +106,12 @@ classification:
 
 risk_engine:
   weights:
-    vibration: 0.15
-    tilt: 0.20
-    displacement: 0.25
-    anomaly: 0.20
-    temporal: 0.10
+    vibration: 0.12
+    tilt: 0.16
+    displacement: 0.22
+    weather: 0.15
+    satellite: 0.15
+    anomaly: 0.10
     spatial: 0.10
   thresholds:
     normal_max: 24.9

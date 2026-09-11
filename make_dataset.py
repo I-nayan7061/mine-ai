@@ -109,52 +109,55 @@ def generate_processed_feature_dataset(
     if not quality_report.is_valid:
         logger.warning("Quality report flagged issues: bound_errors=%d", len(quality_report.bound_errors))
 
-    logger.info("Preprocessing & rolling-window segmentation (60s window, 10s step)...")
+    logger.info("Preprocessing with cycle-isolated rolling-window segmentation (60s window, 10s step)...")
     preprocessor = Preprocessor()
     cleaned_df = preprocessor.clean_dataframe(raw_df)
-    windows = preprocessor.create_rolling_windows(cleaned_df)
-    logger.info("Generated %d rolling windows.", len(windows))
 
-    logger.info("Extracting 69 multi-domain geotechnical features across windows...")
+    # Strict Cycle-Isolated Splitting: Train = Cycle 1 + 2, Val = Cycle 3, Test = Cycle 4
+    train_raw = cleaned_df[cleaned_df["cycle_id"].isin(["Cycle_01", "Cycle_02"])].copy()
+    val_raw = cleaned_df[cleaned_df["cycle_id"] == "Cycle_03"].copy()
+    test_raw = cleaned_df[cleaned_df["cycle_id"] == "Cycle_04"].copy()
+
+    train_windows = preprocessor.create_rolling_windows(train_raw)
+    val_windows = preprocessor.create_rolling_windows(val_raw)
+    test_windows = preprocessor.create_rolling_windows(test_raw)
+    logger.info("Generated cycle-isolated windows: Train=%d, Val=%d, Test=%d (Total=%d)",
+                len(train_windows), len(val_windows), len(test_windows),
+                len(train_windows) + len(val_windows) + len(test_windows))
+
+    logger.info("Extracting geotechnical candidate features across isolated windows...")
     spatial_graph = MineSpatialGraph()
-    X_full, y_full, t_series = extract_features_from_windows(windows, spatial_graph)
-    logger.info("Extracted %d features for %d windows.", X_full.shape[1], X_full.shape[0])
+    X_train_raw, y_train, t_train = extract_features_from_windows(train_windows, spatial_graph)
+    X_val_raw, y_val, t_val = extract_features_from_windows(val_windows, spatial_graph)
+    X_test_raw, y_test, t_test = extract_features_from_windows(test_windows, spatial_graph)
 
-    # Chronological Split (60% Train, 20% Val, 20% Test)
-    data_for_split = X_full.copy()
-    data_for_split["timestamp"] = t_series
-    data_for_split["risk_label"] = y_full
+    logger.info("Extracted features: Train=%d, Val=%d, Test=%d (Candidate features: %d)",
+                len(X_train_raw), len(X_val_raw), len(X_test_raw), X_train_raw.shape[1])
 
-    train_data, val_data, test_data = chronological_split(data_for_split, train_ratio=0.60, val_ratio=0.20)
-
-    X_train_raw = train_data.drop(columns=["timestamp", "risk_label"])
-    y_train = train_data["risk_label"]
-    X_val_raw = val_data.drop(columns=["timestamp", "risk_label"])
-    y_val = val_data["risk_label"]
-    X_test_raw = test_data.drop(columns=["timestamp", "risk_label"])
-    y_test = test_data["risk_label"]
-
-    logger.info("Selecting top 30 non-collinear geotechnical features...")
+    logger.info("Selecting non-collinear features (fitted strictly on training data only)...")
     selector = FeatureSelector()
     selected_cols = selector.fit(X_train_raw, y_train)
 
     X_train = selector.transform(X_train_raw)
     X_val = selector.transform(X_val_raw)
     X_test = selector.transform(X_test_raw)
-    X_all_selected = selector.transform(X_full)
+    X_full_selected = pd.concat([X_train, X_val, X_test], ignore_index=True)
+    y_full = pd.concat([y_train, y_val, y_test], ignore_index=True)
+    t_series = pd.concat([t_train, t_val, t_test], ignore_index=True)
+    X_all_selected = X_full_selected
 
     # Prepare export DataFrames
     train_df = X_train.copy()
     train_df["risk_label"] = y_train.values
-    train_df["timestamp"] = train_data["timestamp"].values
+    train_df["timestamp"] = t_train.values
 
     val_df = X_val.copy()
     val_df["risk_label"] = y_val.values
-    val_df["timestamp"] = val_data["timestamp"].values
+    val_df["timestamp"] = t_val.values
 
     test_df = X_test.copy()
     test_df["risk_label"] = y_test.values
-    test_df["timestamp"] = test_data["timestamp"].values
+    test_df["timestamp"] = t_test.values
 
     full_featured_df = X_all_selected.copy()
     full_featured_df["risk_label"] = y_full.values

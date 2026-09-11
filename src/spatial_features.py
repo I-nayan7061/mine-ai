@@ -110,11 +110,9 @@ class MineSpatialGraph:
             n_vib = float(n_state.get("vibration_rms", 0.0))
 
             # Physical anomaly determination strictly based on physical sensor thresholds:
-            is_physically_anomalous = (
-                n_disp >= self.physical_disp_thresh or
-                n_tilt >= self.physical_tilt_thresh or
-                n_vib >= self.physical_vib_thresh
-            )
+            # Genuine strata anomaly requires deformation (displacement or tilt) OR severe vibration with movement
+            has_deformation = (n_disp >= self.physical_disp_thresh) or (n_tilt >= self.physical_tilt_thresh)
+            is_physically_anomalous = has_deformation or (n_vib >= 1.5 and n_disp >= 1.0)
 
             if is_physically_anomalous:
                 abnormal_count += 1

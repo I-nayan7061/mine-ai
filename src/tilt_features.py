@@ -51,6 +51,8 @@ def extract_tilt_features(
     mag_max = float(np.max(mag))
     mag_range = float(mag_max - mag_min)
     net_change = float(smoothed_mag[-1] - smoothed_mag[0])
+    # Directional vector delta accounting for reciprocal rocking & shear reversals
+    net_vector_change = float(np.hypot(tx[-1] - tx[0], ty[-1] - ty[0]))
 
     # 2. Time-series derivatives (rate and acceleration)
     if time_seconds is None or len(time_seconds) != n:
@@ -113,5 +115,6 @@ def extract_tilt_features(
         f"{prefix}trend_r2": round(trend_r2, 4),
         f"{prefix}sudden_change_max": round(sudden_change, 4),
         f"{prefix}net_angular_change": round(net_change, 4),
+        f"{prefix}net_vector_change": round(net_vector_change, 4),
         f"{prefix}stability_index": round(float(stability), 4)
     }

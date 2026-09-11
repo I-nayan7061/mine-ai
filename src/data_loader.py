@@ -162,11 +162,11 @@ class DataLoader:
                     oob = (s_vals < low) | (s_vals > high)
                     invalid_bounds += int(oob.sum())
 
-                    # Check stuck sensor: constant reading for 100+ consecutive steps
+                    # Check stuck sensor: unchanging value (zero diff or micro-noise < 1e-5) for 100+ consecutive steps
                     if len(s_vals) > 100:
                         diffs = s_vals.diff().abs()
-                        # If diff is exactly 0 for 100 steps
-                        rolling_zero = (diffs == 0.0).rolling(100).sum()
+                        # If diff is effectively 0 for 100 steps
+                        rolling_zero = (diffs < 1e-5).rolling(100).sum()
                         if (rolling_zero >= 99).any():
                             report.stuck_sensors_detected.append({
                                 "node_id": node,

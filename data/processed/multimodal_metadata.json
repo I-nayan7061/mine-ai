@@ -1,0 +1,51 @@
+{
+  "project": "Mine Subsidence AI (SIH26025 - NexGen)",
+  "dataset_name": "multimodal_training_dataset.csv",
+  "description": "Geospatially and temporally synchronized dataset fusing subterranean IoT sensors, India IMD gridded meteorology, and Sentinel-1 InSAR/NISAR Earth observation.",
+  "location": {
+    "mine_name": "Moonidih Colliery",
+    "coalfield": "Jharia Coalfield",
+    "district": "Dhanbad",
+    "state": "Jharkhand",
+    "latitude": 23.7438,
+    "longitude": 86.4172
+  },
+  "total_windows": 3880,
+  "split_counts": {
+    "train_windows": 1940,
+    "val_windows": 970,
+    "test_windows": 970
+  },
+  "modalities": {
+    "sensors": {
+      "frequency": "1.0 Hz",
+      "channels": [
+        "vibration",
+        "tilt_x",
+        "tilt_y",
+        "displacement_mm"
+      ]
+    },
+    "weather": {
+      "frequency": "hourly/daily",
+      "source": "IMD 0.25 deg / Open-Meteo IMD calibrated",
+      "variables": [
+        "rainfall_24h",
+        "rainfall_72h",
+        "soil_moisture_deep",
+        "pore_pressure_kpa"
+      ]
+    },
+    "satellite": {
+      "frequency": "6-12 days",
+      "source": "Sentinel-1 C-Band SAR / ISRO Bhoonidhi NISAR L2",
+      "variables": [
+        "insar_velocity_mm_yr",
+        "insar_cum_los_mm",
+        "coherence",
+        "ndvi_anomaly"
+      ]
+    }
+  },
+  "created_at": "2026-09-11T17:29:06.906729+00:00"
+}

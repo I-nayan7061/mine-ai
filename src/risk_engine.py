@@ -49,7 +49,8 @@ class RiskEngine:
         self,
         vibration_rms: float,
         tilt_magnitude: float,
-        displacement_rate_mm_per_min: float
+        displacement_rate_mm_per_min: float,
+        displacement_mm: float = 0.0
     ) -> Tuple[float, float, float]:
         """Convert raw physical parameters to normalized 0-100 severity subscores."""
         # Vibration subscore
@@ -65,10 +66,18 @@ class RiskEngine:
         )
 
         # Displacement rate subscore
-        disp_score = np.clip(
+        rate_score = np.clip(
             ((displacement_rate_mm_per_min - self.disp_rate_nom) / max(0.01, self.disp_rate_crit - self.disp_rate_nom)) * 100.0,
             0.0, 100.0
         )
+
+        # Absolute cumulative displacement subscore (2.0mm baseline, >= 10.0mm critical)
+        abs_disp_score = np.clip(
+            ((displacement_mm - 2.0) / max(1.0, 10.0 - 2.0)) * 100.0,
+            0.0, 100.0
+        )
+
+        disp_score = max(rate_score, abs_disp_score)
 
         return float(vib_score), float(tilt_score), float(disp_score)
 
@@ -80,16 +89,32 @@ class RiskEngine:
         anomaly_score_norm: float,  # [0.0, 1.0]
         classifier_probs: Optional[Dict[str, float]] = None,
         temporal_trend_slope: float = 0.0,
-        spatial_abnormal_pct: float = 0.0
+        spatial_abnormal_pct: float = 0.0,
+        weather_features: Optional[Dict[str, float]] = None,
+        satellite_features: Optional[Dict[str, float]] = None,
+        displacement_mm: float = 0.0
     ) -> Dict[str, Any]:
         """Compute holistic risk score fusing all diagnostic dimensions with physical interlocks."""
         vib_sub, tilt_sub, disp_sub = self.compute_sensor_subscores(
-            vibration_rms, tilt_magnitude, displacement_rate_mm_per_min
+            vibration_rms, tilt_magnitude, displacement_rate_mm_per_min, displacement_mm=displacement_mm
         )
 
         anomaly_sub = float(np.clip(anomaly_score_norm * 100.0, 0.0, 100.0))
         temporal_sub = float(np.clip(temporal_trend_slope * 50.0, 0.0, 100.0))
         spatial_sub = float(np.clip(spatial_abnormal_pct * 100.0, 0.0, 100.0))
+
+        # Weather subscore (monsoon precipitation accumulation & root-zone saturation)
+        wf = weather_features or {}
+        rain_72h = float(wf.get("env_rain_cum_72h_mm", wf.get("rain_cum_72h_mm", 20.0)))
+        soil_deep = float(wf.get("env_soil_moisture_deep", wf.get("soil_moisture_deep", 0.30)))
+        weather_sub = float(np.clip((rain_72h / 120.0) * 60.0 + (soil_deep / 0.55) * 40.0, 0.0, 100.0))
+
+        # Satellite subscore (InSAR subsidence velocity + NDVI tension crack anomaly + thermal anomaly)
+        sf = satellite_features or {}
+        insar_vel = abs(float(sf.get("sat_insar_velocity_mm_yr", sf.get("sentinel1_insar_velocity_mm_yr", -15.0))))
+        ndvi_anom = abs(float(sf.get("sat_ndvi_anomaly", sf.get("sentinel2_ndvi_anomaly", -0.05))))
+        thermal_anom = float(sf.get("sat_thermal_anomaly_k", sf.get("landsat_thermal_anomaly_k", 1.5)))
+        sat_sub = float(np.clip((insar_vel / 40.0) * 50.0 + (ndvi_anom / 0.30) * 30.0 + (thermal_anom / 6.0) * 20.0, 0.0, 100.0))
 
         # Classifier probability contribution
         ml_score = 0.0
@@ -104,18 +129,34 @@ class RiskEngine:
         # Weighted combination
         w = self.weights
         composite_score = (
-            w.get("vibration", 0.15) * vib_sub +
-            w.get("tilt", 0.20) * tilt_sub +
-            w.get("displacement", 0.25) * disp_sub +
-            w.get("anomaly", 0.20) * anomaly_sub +
-            w.get("temporal", 0.10) * temporal_sub +
+            w.get("vibration", 0.12) * vib_sub +
+            w.get("tilt", 0.16) * tilt_sub +
+            w.get("displacement", 0.22) * disp_sub +
+            w.get("weather", 0.15) * weather_sub +
+            w.get("satellite", 0.15) * sat_sub +
+            w.get("anomaly", 0.10) * anomaly_sub +
             w.get("spatial", 0.10) * spatial_sub
         )
 
         if classifier_probs:
-            final_risk = 0.70 * composite_score + 0.30 * ml_score
+            final_risk = 0.65 * composite_score + 0.35 * ml_score
         else:
             final_risk = composite_score
+
+        # Physical Dominance Override:
+        # If absolute physical roof sag is severe (displacement_mm >= 8.0mm or abs_disp_score >= 80%),
+        # the roof has undergone major mechanical subsidence. Do not dilute through linear averaging.
+        abs_disp_score = float(np.clip(
+            ((displacement_mm - 2.0) / max(1.0, 10.0 - 2.0)) * 100.0,
+            0.0, 100.0
+        ))
+        if abs_disp_score >= 80.0:
+            final_risk = max(final_risk, abs_disp_score * 0.82)
+        elif abs_disp_score >= 50.0:
+            final_risk = max(final_risk, abs_disp_score * 0.70)
+        elif disp_sub >= 80.0 and (tilt_sub >= 20.0 or vib_sub >= 20.0 or spatial_sub >= 20.0):
+            # Dynamic movement corroborated by multiple physical sensing modalities
+            final_risk = max(final_risk, disp_sub * 0.75)
 
         # ====================================================================
         # GEOTECHNICAL PHYSICAL INTERLOCKS (Eliminating False Positives)
@@ -123,21 +164,32 @@ class RiskEngine:
         # 1. False Positive Blasting / Drilling Interlock:
         # If there is ZERO strata convergence velocity (< 0.04 mm/min) and ZERO tilt rate,
         # high vibration is an operational acoustic event, NOT strata collapse!
-        # Cap risk score at 28.0 (low WARNING or NORMAL)
-        if displacement_rate_mm_per_min < 0.04 and tilt_magnitude < 0.6 and abs(temporal_trend_slope) < 0.02:
+        # Only cap if absolute displacement is also safe (< 3.0 mm)
+        if displacement_rate_mm_per_min < 0.04 and tilt_magnitude < 0.6 and abs(temporal_trend_slope) < 0.02 and displacement_mm < 3.0:
             if final_risk > 28.0:
                 final_risk = min(final_risk, 28.0)
 
-        # 2. Critical Confirmation Interlock:
-        # True CRITICAL subsidence requires at least one of:
-        # - Displacement rate >= 0.8 mm/min OR
-        # - Severe cumulative tilt >= 3.0 degrees OR
+        # 2. Strata Physical Equilibrium Interlock:
+        # Only apply equilibrium cap if displacement is within baseline (< 2.5 mm)
+        if (displacement_rate_mm_per_min < 0.25 or abs(temporal_trend_slope) < 0.08) and tilt_magnitude < 0.50 and vibration_rms < 0.20 and displacement_mm < 2.5:
+            if final_risk > 24.0:
+                final_risk = min(final_risk, 24.0)
+
+        # 3. Critical Confirmation Interlock:
+        # True CRITICAL subsidence requires corroborated physical evidence:
+        # - Displacement rate >= 0.50 mm/min with deformation/acoustic corroboration OR
+        # - Severe cumulative tilt >= 2.5 degrees OR
+        # - Severe absolute roof sag >= 8.0 mm OR
         # - Adjacent gallery nodes confirming active spatial anomaly
         if final_risk >= self.thresholds.get("critical_min", 75.0):
-            has_disp_velocity = displacement_rate_mm_per_min >= 0.50
+            has_disp_velocity = (
+                displacement_rate_mm_per_min >= 0.50 and
+                (displacement_mm >= 3.5 or tilt_magnitude >= 1.0 or vibration_rms >= 0.25)
+            )
             has_tilt_deflection = tilt_magnitude >= 2.5
+            has_absolute_sag = displacement_mm >= 8.0
             has_spatial_confirmation = spatial_abnormal_pct >= 0.25
-            if not (has_disp_velocity or has_tilt_deflection or has_spatial_confirmation):
+            if not (has_disp_velocity or has_tilt_deflection or has_absolute_sag or has_spatial_confirmation):
                 # Downgrade from Critical to High if single sensor lacks physical corroboration
                 final_risk = 74.0
 
@@ -160,6 +212,8 @@ class RiskEngine:
                 "vibration_severity": round(vib_sub, 2),
                 "tilt_severity": round(tilt_sub, 2),
                 "displacement_severity": round(disp_sub, 2),
+                "weather_severity": round(weather_sub, 2),
+                "satellite_severity": round(sat_sub, 2),
                 "anomaly_score": round(anomaly_sub, 2),
                 "temporal_trend": round(temporal_sub, 2),
                 "spatial_correlation": round(spatial_sub, 2)

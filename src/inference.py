@@ -24,6 +24,8 @@ from .explainability import MineExplainer
 from .risk_engine import RiskEngine
 from .spatial_features import MineSpatialGraph
 from .tilt_features import extract_tilt_features
+from .environmental_features import extract_environmental_features
+from .geo_fetcher import get_moonidih_environmental_snapshot
 from .utils import get_logger, load_artifact, load_json
 from .vibration_features import extract_vibration_features
 
@@ -45,6 +47,8 @@ class NodeBufferManager:
         ts = reading["timestamp"]
         if isinstance(ts, str):
             ts = pd.to_datetime(ts)
+        if getattr(ts, "tzinfo", None) is not None or getattr(ts, "tz", None) is not None:
+            ts = ts.tz_convert("UTC").tz_localize(None)
 
         entry = {
             "timestamp": ts,
@@ -120,7 +124,8 @@ class MineInferencePipeline:
             logger.warning("No classifier artifact found.")
 
         if self.classifier is not None and self.selected_features:
-            self.explainer = MineExplainer(self.classifier.model, self.selected_features)
+            scaler = getattr(self.classifier, "scaler", None)
+            self.explainer = MineExplainer(self.classifier.model, self.selected_features, scaler=scaler)
         else:
             self.explainer = None
 
@@ -143,17 +148,46 @@ class MineInferencePipeline:
         self.buffer_manager.add_reading(raw_reading)
         df_buf = self.buffer_manager.get_dataframe(node_id)
 
-        # Warm-up phase: need at least 5 readings
-        if len(df_buf) < 5:
+        # Multi-Modal Environmental & Satellite Resolution for Indian Mining Footprint
+        weather_in = raw_reading.get("weather")
+        sat_in = raw_reading.get("satellite")
+        if not weather_in or not sat_in:
+            env_snap = get_moonidih_environmental_snapshot()
+            if not weather_in:
+                weather_in = env_snap.get("weather", {})
+            if not sat_in:
+                sat_in = env_snap.get("satellite", {})
+
+        weather_summary = {
+            "rain_cum_24h_mm": float(weather_in.get("rain_cum_24h_mm", 14.2)),
+            "rain_cum_72h_mm": float(weather_in.get("rain_cum_72h_mm", 48.5)),
+            "soil_moisture_deep": float(weather_in.get("soil_moisture_deep", 0.36))
+        }
+        satellite_summary = {
+            "insar_velocity_mm_yr": float(sat_in.get("sentinel1_insar_velocity_mm_yr", -18.4)),
+            "ndvi_anomaly": float(sat_in.get("sentinel2_ndvi_anomaly", -0.14)),
+            "thermal_anomaly_k": float(sat_in.get("landsat_thermal_anomaly_k", 3.4))
+        }
+
+        # Warm-up phase: check for emergency instantaneous thresholds even if buffer is small
+        raw_disp = float(raw_reading["displacement_mm"])
+        raw_vib = float(raw_reading["vibration"])
+        raw_tilt_mag = float(np.sqrt(float(raw_reading["tilt_x"]) ** 2 + float(raw_reading["tilt_y"]) ** 2))
+
+        # Check for immediate critical strata failure during cold-start
+        is_instant_critical = raw_disp >= 10.0 or raw_tilt_mag >= 5.0 or (raw_vib >= 2.5 and raw_disp >= 3.0)
+        is_instant_high = (raw_disp >= 4.0 or raw_tilt_mag >= 2.5) and not is_instant_critical
+
+        if len(df_buf) < 5 and not (is_instant_critical or is_instant_high):
             return {
                 "success": True,
                 "node_id": node_id,
                 "timestamp": str(raw_reading["timestamp"]),
                 "sensor_values": {
-                    "vibration": float(raw_reading["vibration"]),
-                    "tilt_x": float(raw_reading["tilt_x"]),
-                    "tilt_y": float(raw_reading["tilt_y"]),
-                    "displacement_mm": float(raw_reading["displacement_mm"])
+                    "vibration": round(float(raw_reading["vibration"]), 4),
+                    "tilt_x": round(float(raw_reading["tilt_x"]), 4),
+                    "tilt_y": round(float(raw_reading["tilt_y"]), 4),
+                    "displacement_mm": round(float(raw_reading["displacement_mm"]), 4)
                 },
                 "status": "BUFFERING",
                 "buffer_count": len(df_buf),
@@ -162,10 +196,72 @@ class MineInferencePipeline:
                 "risk_score": 10.0,
                 "risk_level": "NORMAL",
                 "class_probabilities": {"NORMAL": 0.95, "WARNING": 0.05, "HIGH": 0.0, "CRITICAL": 0.0},
+                "subscores": {
+                    "vibration_severity": 5.0,
+                    "tilt_severity": 5.0,
+                    "displacement_severity": 5.0,
+                    "weather_severity": 15.0,
+                    "satellite_severity": 15.0,
+                    "anomaly_score": 5.0,
+                    "temporal_trend": 0.0,
+                    "spatial_correlation": 0.0
+                },
+                "weather_summary": weather_summary,
+                "satellite_summary": satellite_summary,
                 "top_contributing_features": ["buffer_warming"],
                 "human_explanations": ["Warming up rolling window buffer (gathering initial samples)"],
                 "neighbour_anomalies": 0,
                 "confidence": 0.95
+            }
+
+        if len(df_buf) < 5 and (is_instant_critical or is_instant_high):
+            emerg_score = 88.0 if is_instant_critical else 65.0
+            emerg_level = "CRITICAL" if is_instant_critical else "HIGH"
+            self.fleet_states[node_id] = {
+                "displacement_mm": raw_disp,
+                "tilt_magnitude": raw_tilt_mag,
+                "vibration_rms": raw_vib,
+                "is_abnormal": True,
+                "risk_score": emerg_score
+            }
+            return {
+                "success": True,
+                "node_id": node_id,
+                "timestamp": str(raw_reading["timestamp"]),
+                "sensor_values": {
+                    "vibration": round(float(raw_reading["vibration"]), 4),
+                    "tilt_x": round(float(raw_reading["tilt_x"]), 4),
+                    "tilt_y": round(float(raw_reading["tilt_y"]), 4),
+                    "displacement_mm": round(float(raw_reading["displacement_mm"]), 4)
+                },
+                "status": "EMERGENCY_INTERLOCK_TRIGGERED",
+                "buffer_count": len(df_buf),
+                "anomaly": True,
+                "anomaly_score": 0.95,
+                "risk_score": emerg_score,
+                "risk_level": emerg_level,
+                "class_probabilities": {
+                    "NORMAL": 0.0,
+                    "WARNING": 0.05,
+                    "HIGH": 0.25 if is_instant_critical else 0.70,
+                    "CRITICAL": 0.70 if is_instant_critical else 0.25
+                },
+                "subscores": {
+                    "vibration_severity": 80.0 if is_instant_critical else 60.0,
+                    "tilt_severity": 85.0 if is_instant_critical else 65.0,
+                    "displacement_severity": 90.0 if is_instant_critical else 70.0,
+                    "weather_severity": 20.0,
+                    "satellite_severity": 25.0,
+                    "anomaly_score": 95.0,
+                    "temporal_trend": 50.0,
+                    "spatial_correlation": 0.0
+                },
+                "weather_summary": weather_summary,
+                "satellite_summary": satellite_summary,
+                "top_contributing_features": ["instantaneous_displacement_exceeded" if raw_disp >= 4.0 else "instantaneous_tilt_exceeded"],
+                "human_explanations": [f"Emergency threshold exceeded on cold-start: displacement={raw_disp}mm, tilt={round(raw_tilt_mag,2)}°"],
+                "neighbour_anomalies": 0,
+                "confidence": 0.98
             }
 
         # 3. Compute Features
@@ -193,12 +289,25 @@ class MineInferencePipeline:
             "geom_stability_composite": round(float(tilt_feats["tilt_stability_index"] * disp_feats["disp_stability_index"]), 4)
         }
 
+        # Multi-Modal Environmental & Satellite Enrichment for Indian Mining Footprint
+        weather_in = raw_reading.get("weather")
+        sat_in = raw_reading.get("satellite")
+        if not weather_in or not sat_in:
+            env_snap = get_moonidih_environmental_snapshot()
+            if not weather_in:
+                weather_in = env_snap.get("weather", {})
+            if not sat_in:
+                sat_in = env_snap.get("satellite", {})
+
+        env_feats = extract_environmental_features(weather_in, sat_in, disp_feats)
+
         row = {}
         row.update(vib_feats)
         row.update(tilt_feats)
         row.update(disp_feats)
         row.update(spatial_feats)
         row.update(interaction_feats)
+        row.update(env_feats)
 
         feature_df = pd.DataFrame([row])
 
@@ -231,7 +340,7 @@ class MineInferencePipeline:
         # Use sustained slope rate rather than 1-second white-noise spikes
         sustained_disp_rate = max(abs(disp_feats["disp_trend_slope"]), abs(disp_feats["disp_rate_mean"]))
 
-        # Risk Engine Fusion
+        # Risk Engine Multi-Modal Fusion
         risk_result = self.risk_engine.calculate_risk(
             vibration_rms=vib_feats["vib_rms"],
             tilt_magnitude=tilt_feats["tilt_mag_current"],
@@ -239,7 +348,10 @@ class MineInferencePipeline:
             anomaly_score_norm=anomaly_score,
             classifier_probs=class_probs,
             temporal_trend_slope=disp_feats["disp_trend_slope"],
-            spatial_abnormal_pct=spatial_feats.get("spatial_pct_abnormal_neighbors", 0.0)
+            spatial_abnormal_pct=spatial_feats.get("spatial_pct_abnormal_neighbors", 0.0),
+            weather_features=env_feats,
+            satellite_features=env_feats,
+            displacement_mm=disp_feats["disp_current"]
         )
 
         final_risk_score = risk_result["risk_score"]
@@ -267,6 +379,16 @@ class MineInferencePipeline:
                 "tilt_x": round(float(raw_reading["tilt_x"]), 4),
                 "tilt_y": round(float(raw_reading["tilt_y"]), 4),
                 "displacement_mm": round(float(raw_reading["displacement_mm"]), 4)
+            },
+            "weather_summary": {
+                "rain_cum_24h_mm": env_feats.get("env_rain_cum_24h_mm", 0.0),
+                "rain_cum_72h_mm": env_feats.get("env_rain_cum_72h_mm", 0.0),
+                "soil_moisture_deep": env_feats.get("env_soil_moisture_deep", 0.35)
+            },
+            "satellite_summary": {
+                "insar_velocity_mm_yr": env_feats.get("sat_insar_velocity_mm_yr", -18.4),
+                "ndvi_anomaly": env_feats.get("sat_ndvi_anomaly", -0.14),
+                "thermal_anomaly_k": env_feats.get("sat_thermal_anomaly_k", 3.4)
             },
             "anomaly": is_anomaly,
             "anomaly_score": round(anomaly_score, 4),

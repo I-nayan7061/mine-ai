@@ -1,0 +1,9 @@
+{
+  "window_size_seconds": 60,
+  "step_size_seconds": 10,
+  "sampling_rate_hz": 1.0,
+  "split_strategy": "Strict Cycle Isolation (Cycle 1+2 Train, Cycle 3 Val, Cycle 4 Test)",
+  "zero_cross_split_overlap": true,
+  "scaler_fit_on_train_only": true,
+  "created_at": "2026-09-11T17:29:16.242421+00:00"
+}

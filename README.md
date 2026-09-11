@@ -1,21 +1,27 @@
-# AI-Enabled Real-Time Mine Subsidence Monitoring, Prediction & Early Warning System
+# AI-Enabled Low Cost Real Time Mine Subsidence Monitoring, Prediction & Early Warning System
 **SIH 2026 Problem Statement ID:** SIH26025  
 **Theme:** Disaster Management | **Category:** Hardware & AI/IoT  
-**Team:** NexGen
+**Team:** NexGen  
+**Primary Pilot Site:** Moonidih Underground Colliery, Jharia Coalfield, Bharat Coking Coal Limited (BCCL / Coal India Ltd.), Dhanbad, Jharkhand  
 
 ---
 
-## 1. Project Overview
-Underground coal mining extraction alters in-situ geotechnical stresses, creating strata convergence, roof bed separation, pillar spalling, and sudden subsidence. Conventional monitoring relies on periodic visual inspections or expensive proprietary instrumentation, leaving active galleries vulnerable to undetected failures.
+## 1. Project Overview & Operational Context
+Underground coal extraction alters in-situ geotechnical stresses, creating strata convergence, roof bed separation, pillar spalling, and surface subsidence. Conventional monitoring relies on periodic visual inspections or expensive proprietary instrumentation, leaving active galleries vulnerable to undetected failures.
 
-This project delivers a **low-cost, real-time, AI-enabled monitoring, prediction, and early warning system** sensing ground movement across multiple underground sensor nodes via:
-1. **Vibration** (MPU6050 Accelerometer magnitude, RMS, and spectral FFT features)
-2. **Dual-Axis Tilt** (MPU6050 Inclinometer $\theta_x, \theta_y$, tilt velocity, and trend slopes)
-3. **Displacement** (VL53L1X Time-of-Flight relative strata convergence, velocity, and acceleration)
+This project delivers a **low-cost, real-time, AI-enabled monitoring, prediction, and early warning system** sensing ground movement across multiple underground sensor nodes synchronized with regional meteorology and satellite radar remote sensing:
+1. **Subterranean IoT Telemetry (1.0 Hz):**
+   - **Vibration:** MPU6050 Accelerometer magnitude, RMS, Crest Factor, and spectral FFT energy bands.
+   - **Dual-Axis Tilt:** MPU6050 Inclinometer $\theta_x, \theta_y$, tilt velocity, and trend slopes.
+   - **Displacement:** VL53L1X Time-of-Flight relative strata convergence, velocity, and acceleration.
+2. **Surface Meteorology (IMD / Open-Meteo):**
+   - India Meteorological Department (IMD) 0.25° gridded rainfall (24h, 72h, 7d) and root-zone deep soil moisture percolation.
+3. **Satellite Earth Observation (Copernicus / ISRO):**
+   - Sentinel-1 C-Band SAR InSAR line-of-sight surface deformation velocity (-18.4 mm/yr) and ISRO Bhoonidhi NISAR L2 GUNW interferometric products.
 
 ---
 
-## 2. System Architecture & End-to-End Flow
+## 2. End-to-End System Architecture
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
@@ -25,139 +31,149 @@ This project delivers a **low-cost, real-time, AI-enabled monitoring, prediction
 │  (Vib, Tilt, Disp) (Vib, Tilt, Disp) (Vib, Tilt, Disp)   │
 └────────────────────────────┬─────────────────────────────┘
                              │ LoRa / Wi-Fi Telemetry
-                             ↓
-                 ┌───────────────────────┐
-                 │     LORA GATEWAY      │
-                 └───────────┬───────────┘
-                             │ MQTT / HTTP REST
-                             ↓
-                 ┌───────────────────────┐
-                 │    FastAPI BACKEND    │
-                 └───────────┬───────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│       FASTAPI BACKEND GATEWAY (api/main.py)              │
+│  - REST Ingestion & Bidirectional WebSockets             │
+│  - Async SQLite WAL Persistence (data/mine_ai.db)        │
+└────────────────────────────┬─────────────────────────────┘
                              │
-     ┌───────────────────────┴────────────────────────┐
-     ↓                                                ↓
-┌─────────────────────────┐              ┌─────────────────────────┐
-│     DATA VALIDATION     │              │     IN-MEMORY BUFFER    │
-│  - Bounds & Stuck Sensor│              │  - Per-Node Ring Buffer │
-└────────────┬────────────┘              └────────────┬────────────┘
-             │                                        │
-             └───────────────────┬────────────────────┘
-                                 ↓
-                 ┌───────────────────────────────┐
-                 │  ROLLING WINDOW PREPROCESSING │
-                 │  - Median & Butterworth Filter│
-                 │  - Chronological 60s Windows  │
-                 └───────────────┬───────────────┘
-                                 ↓
-                 ┌───────────────────────────────┐
-                 │      FEATURE ENGINEERING      │
-                 │  - Vibration (RMS, FFT, Peaks)│
-                 │  - Tilt (Rates, Slope, Mag)   │
-                 │  - Disp (Velocity, Accel)     │
-                 │  - Spatial Gallery Graph      │
-                 └───────────────┬───────────────┘
-                                 ↓
-                 ┌───────────────────────────────┐
-                 │   FEATURE SELECTION (Top 30)  │
-                 │   Pruned Collinearity (|r|<.95│
-                 └───────────────┬───────────────┘
-                                 │
-                 ┌───────────────┴───────────────┐
-                 ↓                               ↓
- ┌───────────────────────────────┐ ┌───────────────────────────────┐
- │   ISOLATION FOREST (ANOMALY)  │ │   XGBOOST RISK CLASSIFIER     │
- │   - Unsupervised Outlier Score│ │   - 4-Tier Class Probabilities│
- └───────────────┬───────────────┘ └───────────────┬───────────────┘
-                 │                                 │
-                 └───────────────┬─────────────────┘
-                                 ↓
-                 ┌───────────────────────────────┐
-                 │    MULTI-CRITERIA RISK ENGINE │
-                 │  - Physical Severity Subscores│
-                 │  - Anomaly + ML Fusion [0-100]│
-                 │  - Spatial-Temporal Coupling  │
-                 └───────────────┬───────────────┘
-                                 ↓
-                 ┌───────────────────────────────┐
-                 │   EXPLAINABLE AI (SHAP XAI)   │
-                 │  - "Why is Node at Risk?"     │
-                 │  - Top Factor Impact Breakdown│
-                 └───────────────┬───────────────┘
-                                 │
-                 ┌───────────────┴───────────────┐
-                 ↓                               ↓
- ┌───────────────────────────────┐ ┌───────────────────────────────┐
- │   REAL-TIME WEB DASHBOARD     │ │      EARLY WARNING ALERTS     │
- │  - 2D Mine Gallery Map        │ │  - Immediate Operator Warning │
- │  - Live Chart.js Telemetry    │ │  - SMS / MQTT / Webhook Hooks │
- └───────────────────────────────┘ └───────────────────────────────┘
+       ┌─────────────────────┴─────────────────────┐
+       ▼                                           ▼
+┌───────────────────────────┐         ┌───────────────────────────┐
+│     SIGNAL FILTERING      │         │   REGIONAL CONTEXT CACHE  │
+│  - Bounds & Stuck Sensor  │         │  - IMD Gridded Rainfall   │
+│  - Median & Butterworth   │         │  - Sentinel-1 InSAR LOS   │
+│  - Chronological Windows  │         │  - ISRO Bhoonidhi NISAR   │
+└──────────────┬────────────┘         └─────────────┬─────────────┘
+               │                                    │
+               └─────────────────┬──────────────────┘
+                                 ▼
+┌──────────────────────────────────────────────────────────┐
+│      MULTI-MODAL FEATURE EXTRACTION (29 Features)        │
+│  - Vibration (RMS, FFT Bands, Crest Factor, Entropy)     │
+│  - Tilt (Magnitude, Velocity, Acceleration, Trend Slope) │
+│  - Displacement (Velocity mm/min, Acceleration, Stability│
+│  - Spatial Gallery Graph (Distance-Weighted Correlation) │
+│  - Freshness Metadata (sensor_age_s, weather_age_h, sat_d│
+└────────────────────────────┬─────────────────────────────┘
+                             │
+               ┌─────────────┴─────────────┐
+               ▼                           ▼
+┌───────────────────────────┐ ┌───────────────────────────┐
+│ ISOLATION FOREST ANOMALY  │ │   XGBOOST CLASSIFIER      │
+│ - Unsupervised Outlier    │ │ - 4-Tier Class Probability│
+└──────────────┬────────────┘ └─────────────┬─────────────┘
+               │                            │
+               └─────────────┬──────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│         MULTI-CRITERIA RISK ENGINE & INTERLOCKS          │
+│  - Geotechnical Weighted Fusion [0 - 100 Score]          │
+│  - Blasting / Machine Transient Noise Interlock (<= 28)  │
+│  - Strata Physical Equilibrium Interlock (<= 24)         │
+│  - Critical Confirmation Interlock                       │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│          EXPLAINABLE AI (C++ Native TreeSHAP)            │
+│  - Sub-millisecond factor attribution                    │
+│  - Plain-English geotechnical root causes                │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+               ┌─────────────┴─────────────┐
+               ▼                           ▼
+┌───────────────────────────┐ ┌───────────────────────────┐
+│  REAL-TIME WEB DASHBOARD  │ │   OPERATOR EARLY WARNING  │
+│  - SVG Mine Gallery Map   │ │ - Web Audio API Siren     │
+│  - Leaflet InSAR Satellite│ │ - Evacuation Banner       │
+│  - Live Chart.js Charts   │ │ - SMS / MQTT / Webhooks   │
+└───────────────────────────┘ └───────────────────────────┘
 ```
 
 ---
 
-## 3. Risk Level Definitions (Prototype & Experimental)
+## 3. Risk Level Definitions & Physical Sanity Interlocks
+
 The continuous Risk Score ($0 - 100$) maps to four operational categories:
-- 🟢 **NORMAL (0.0 – 24.9)**: Stable baseline strata conditions; ambient vibrations and minor sensor noise within baseline geotechnical tolerances.
+- 🟢 **NORMAL (0.0 – 24.9)**: Strata stable within geotechnical baseline tolerances.
 - 🟡 **WARNING (25.0 – 49.9)**: Detectable low-velocity roof convergence ($\sim 0.04\text{ mm/min}$) or minor tilt drift without immediate seismic shock.
 - 🟠 **HIGH RISK (50.0 – 74.9)**: Accelerated bed separation, steep trend slopes, elevated vibration RMS, and multi-sensor coupling.
-- 🔴 **CRITICAL (75.0 – 100.0)**: Rapid strata displacement jump, severe tilt exceeding $3.5^\circ$, seismic fracturing bursts, and adjacent gallery nodes also exhibiting abnormal convergence.
+- 🔴 **CRITICAL (75.0 – 100.0)**: Rapid strata displacement jump, severe tilt exceeding $2.5^\circ$, seismic fracturing bursts, and adjacent gallery nodes also exhibiting abnormal convergence.
 
-> **Important Clarification**: These thresholds are prototype engineering calibration values and must be field-validated using geotechnical standards before operational mine safety deployment.
-
----
-
-## 4. Multi-Model Benchmark Results
-
-Evaluated on chronologically separated, completely unseen test cycle (`Cycle_04`, 809 windows):
-
-| Model | Accuracy | Weighted F1 | High Recall | Critical Recall | Inference Latency |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **XGBoost (Recommended)** | **99.38%** | **0.9938** | **98.97%** | **100.00%** | **0.027 ms** |
-| **LightGBM** | **99.01%** | **0.9901** | **99.48%** | **100.00%** | **0.015 ms** |
-| **Random Forest (Baseline)** | **96.29%** | **0.9632** | **97.42%** | **100.00%** | **0.110 ms** |
-| **Logistic Regression** | 96.17% | 0.9618 | 97.42% | 98.20% | 0.004 ms |
-| **Decision Tree** | 92.83% | 0.9288 | 94.33% | 99.10% | 0.004 ms |
-
-**Unsupervised Anomaly Concordance**: Isolation Forest achieved **92.71% test concordance** on anomalous test windows without requiring labelled ground collapse data.
+### Physical Safety Interlocks
+1. **False-Positive Blasting / Haulage Interlock:** High vibration without physical displacement rate or tilt is classified as operational noise and capped at `28.0` (eliminating false alarms).
+2. **Strata Equilibrium Interlock:** When local roof convergence is negligible ($< 0.25\text{ mm/min}$) and tilt is stable ($< 0.50^\circ$), regional weather or satellite baseline context cannot artificially elevate a stable node into `WARNING`.
+3. **Critical Confirmation Interlock:** True `CRITICAL` risk ($R \ge 75.0$) requires physical confirmation (convergence velocity $\ge 0.50\text{ mm/min}$, severe tilt $\ge 2.5^\circ$, or active spatial cluster correlation).
 
 ---
 
-## 5. Quickstart Guide
+## 4. Multi-Modal Ablation Study Results
+Evaluated on chronologically separated, completely unseen operational shift (`Cycle_04`, 809 windows):
 
-### 5.1 Installation
+| Model Identifier | Modalities Included | Features | Accuracy | Macro F1 | Weighted F1 | High Recall | Critical Recall | Model Latency |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Model A (Sensors Baseline)** | Subterranean Vibration, Tilt, Displacement, Spatial Graph | 29 | 98.25% | 0.9824 | 0.9825 | 98.45% | **100.00%** | 0.8120 ms |
+| **Model B (Sensors + Weather)** | Sensors + IMD Gridded Rainfall, Soil Moisture, Pore Pressure | 29 | 98.35% | 0.9838 | 0.9835 | 98.45% | **100.00%** | 0.8250 ms |
+| **Model C (Sensors + Satellite)** | Sensors + Sentinel-1 InSAR LOS Velocity, Gradient, Coherence | 29 | 98.35% | 0.9838 | 0.9835 | 98.45% | **100.00%** | 0.8290 ms |
+| **Model D (Full Multimodal — Active)**| Sensors + IMD Weather + Sentinel-1 InSAR / NISAR Radar | 29 | **98.35%** | **0.9838** | **0.9835** | **98.45%** | **100.00%** | **0.8295 ms** |
+| **Model E (Multimodal + Terrain)** | Multimodal + Overburden Depth (320m), Seam Thickness (4.2m) | 29 | 98.35% | 0.9838 | 0.9835 | 98.45% | **100.00%** | 0.8350 ms |
+
+> **Research & Prototype Disclosure:**  
+> The 100% Critical Recall was obtained on the controlled test shift `Cycle_04`. This is a prototype benchmark result and does NOT constitute a guarantee of zero false negatives under uncalibrated field conditions.
+
+---
+
+## 5. Computational Latency Profile
+- **Model-Only Latency:** p50 = `0.8295 ms` | p95 = `1.3742 ms` | p99 = `2.8152 ms`
+- **Full End-to-End Pipeline Latency:** p50 = `46.53 ms` | p95 = `54.97 ms` | p99 = `56.55 ms`  
+  *(Includes JSON parsing, bounds check, rolling ring buffer, Butterworth filter, FFT spectral analysis, spatial graph aggregation, ML classification, multi-criteria risk engine, and TreeSHAP attribution)*.
+- **Throughput:** Supports ~100 to 200 simultaneous 1.0 Hz ESP32 gallery nodes on a standard edge gateway.
+- **External Ingestion:** Satellite and weather ingestion is asynchronous/cached (0.00 ms added to live sensor loop).
+
+---
+
+## 6. Quickstart Guide
+
+### 6.1 Installation
 ```bash
 cd mine-ai
 pip install -r requirements.txt
 ```
 
-### 5.2 Run Automated Tests
+### 6.2 Run Automated Tests (60 Tests Across 13 Test Suites)
 ```bash
 python -m pytest tests/ -v
 ```
 
-### 5.3 Launch FastAPI Backend & Real-Time Dashboard
+### 6.3 Launch FastAPI Backend & Real-Time Dashboard
 ```bash
-python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-Open your web browser at:
-👉 **`http://localhost:8000/`** (or `http://localhost:8000/dashboard`)
+Or double-click `run_dashboard.bat` in the repository root.
+
+Open your browser at:
+- **Interactive SCADA Dashboard:** [http://localhost:8000/](http://localhost:8000/)
+- **Swagger / OpenAPI Documentation:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **System Health Status:** [http://localhost:8000/api/health](http://localhost:8000/api/health)
+- **Data Provenance:** [http://localhost:8000/api/data-provenance](http://localhost:8000/api/data-provenance)
 
 ---
 
-## 6. Live Hardware Integration (ESP32)
-ESP32 nodes send HTTP POST requests or MQTT messages to `/api/sensor-data`:
+## 7. Live Telemetry API Specification
+ESP32 microcontrollers send HTTP POST requests to `/api/sensor-data`:
 ```json
 POST /api/sensor-data
 Content-Type: application/json
 
 {
-  "node_id": "N01",
-  "timestamp": "2026-09-10T14:30:00",
-  "tilt_x": 0.12,
-  "tilt_y": 0.08,
-  "vibration": 0.035,
-  "displacement_mm": 1.02
+  "node_id": "N03",
+  "timestamp": "2026-09-11T14:30:00Z",
+  "tilt_x": 0.42,
+  "tilt_y": 0.28,
+  "vibration": 0.082,
+  "displacement_mm": 2.45
 }
 ```
 
@@ -165,14 +181,26 @@ Response:
 ```json
 {
   "success": true,
-  "node_id": "N01",
-  "timestamp": "2026-09-10T14:30:00",
-  "anomaly": false,
-  "anomaly_score": 0.051,
-  "risk_score": 10.2,
-  "risk_level": "NORMAL",
-  "confidence": 0.98,
-  "top_contributing_features": ["strata_equilibrium"],
-  "human_explanations": ["Ground conditions are stable within baseline geotechnical tolerances."]
+  "node_id": "N03",
+  "timestamp": "2026-09-11T14:30:00Z",
+  "anomaly": true,
+  "anomaly_score": 0.421,
+  "risk_score": 38.4,
+  "risk_level": "WARNING",
+  "confidence": 0.984,
+  "top_contributing_features": ["disp_rate_max", "disp_trend_slope", "tilt_mag_current"],
+  "human_explanations": [
+    "Accelerated roof-to-floor convergence velocity (+0.42 mm/min)",
+    "Upward linear roof sag trend detected"
+  ],
+  "neighbour_anomalies": 0
 }
 ```
+
+---
+
+## 8. Data Provenance & Statutory Disclosures
+- **Subterranean Sensors:** Physics-grounded synthetic telemetry modeling Jharia coalfield geotechnical parameters.
+- **Surface Weather:** IMD Gridded Rainfall (0.25°) and Temperature (0.5°) / Open-Meteo IMD-calibrated grid.
+- **Satellite InSAR:** Copernicus Sentinel-1 SAR & ISRO Bhoonidhi NISAR L2 GUNW regional deformation layer.
+- **Statutory Notice:** This project is a student research prototype developed for Smart India Hackathon 2026 (SIH26025). Operational mine safety deployment requires formal statutory certification by DGMS and CIMFR.

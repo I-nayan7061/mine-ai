@@ -1,0 +1,79 @@
+{
+  "selection_method": "Correlation Threshold (|r| < 0.95) + Variance + Tree Importance",
+  "fit_strictly_on_train": true,
+  "input_features_count": 92,
+  "selected_features_count": 29,
+  "selected_features": [
+    "spatial_disp_gradient_max",
+    "tilt_x_current",
+    "tilt_mag_std",
+    "vib_std",
+    "vib_variance",
+    "spatial_avg_neighbor_disp",
+    "spatial_avg_neighbor_vib",
+    "vib_mean",
+    "tilt_trend_r2",
+    "vib_min",
+    "tilt_stability_index",
+    "spatial_num_abnormal_neighbors",
+    "tilt_accel_max",
+    "spatial_pct_abnormal_neighbors",
+    "tilt_rate_max",
+    "disp_accel_max",
+    "vib_skewness",
+    "disp_rate_max",
+    "vib_cov",
+    "disp_stability_index",
+    "vib_crest_factor",
+    "vib_kurtosis",
+    "vib_spectral_centroid",
+    "vib_spectral_energy_low",
+    "vib_dominant_frequency",
+    "vib_spectral_energy_mid",
+    "vib_spectral_entropy",
+    "vib_spectral_energy_high",
+    "vib_second_dominant_frequency"
+  ],
+  "feature_types": {
+    "vibration": [
+      "vib_std",
+      "vib_variance",
+      "vib_mean",
+      "vib_min",
+      "vib_skewness",
+      "vib_cov",
+      "vib_crest_factor",
+      "vib_kurtosis",
+      "vib_spectral_centroid",
+      "vib_spectral_energy_low",
+      "vib_dominant_frequency",
+      "vib_spectral_energy_mid",
+      "vib_spectral_entropy",
+      "vib_spectral_energy_high",
+      "vib_second_dominant_frequency"
+    ],
+    "tilt": [
+      "tilt_x_current",
+      "tilt_mag_std",
+      "tilt_trend_r2",
+      "tilt_stability_index",
+      "tilt_accel_max",
+      "tilt_rate_max"
+    ],
+    "displacement": [
+      "disp_accel_max",
+      "disp_rate_max",
+      "disp_stability_index"
+    ],
+    "spatial": [
+      "spatial_disp_gradient_max",
+      "spatial_avg_neighbor_disp",
+      "spatial_avg_neighbor_vib",
+      "spatial_num_abnormal_neighbors",
+      "spatial_pct_abnormal_neighbors"
+    ],
+    "weather": [],
+    "satellite": [],
+    "interaction": []
+  }
+}

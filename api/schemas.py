@@ -25,6 +25,10 @@ class SensorReadingRequest(BaseModel):
     battery_voltage: Optional[float] = None
     signal_quality: Optional[float] = None
 
+    # Multi-Modal Weather & Satellite Overrides (Optional, defaults to Jharia live feed if omitted)
+    weather: Optional[Dict[str, float]] = None
+    satellite: Optional[Dict[str, float]] = None
+
 
 class RiskPredictionResponse(BaseModel):
     """Standardized response matching SIH master specification."""
@@ -32,6 +36,8 @@ class RiskPredictionResponse(BaseModel):
     timestamp: str
     node_id: str
     sensor_values: Dict[str, float]
+    weather_summary: Optional[Dict[str, float]] = None
+    satellite_summary: Optional[Dict[str, float]] = None
     anomaly: bool
     anomaly_score: float
     risk_score: float
@@ -63,3 +69,14 @@ class AlertItem(BaseModel):
     risk_score: float
     reason: str
     top_factors: List[str]
+
+
+class MineObservatoryData(BaseModel):
+    """Complete multi-modal dump for Moonidih Colliery, Jharia Coalfield."""
+    metadata: Dict[str, Any]
+    coordinates: Dict[str, float]
+    weather: Dict[str, Any]
+    satellite: Dict[str, Any]
+    geotech_indices: Dict[str, Any]
+    recent_records_count: int
+    sample_records: List[Dict[str, Any]]

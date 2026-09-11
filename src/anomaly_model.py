@@ -109,9 +109,9 @@ class MineAnomalyDetector:
         raw_scores = self.model.decision_function(X_scaled)
 
         # Convert raw decision score to [0, 1] anomaly probability:
-        # Lower decision_function -> Higher anomaly score
-        # Typically raw_score is in [-0.5, 0.5]
-        anomaly_scores = 1.0 / (1.0 + np.exp(raw_scores * 6.0))
+        # Calibrated around decision boundary: raw_scores > 0.0 indicates normal inliers in sklearn
+        # Shifts baseline so that healthy inliers produce near-zero anomaly scores
+        anomaly_scores = np.clip(1.0 / (1.0 + np.exp((raw_scores - 0.02) * 10.0)), 0.0, 1.0)
         # Binary prediction: -1 is anomaly in sklearn
         raw_preds = self.model.predict(X_scaled)
         is_anomaly = raw_preds == -1

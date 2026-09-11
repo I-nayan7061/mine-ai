@@ -44,9 +44,10 @@ GEOTECH_FACTOR_DESCRIPTIONS = {
 class MineExplainer:
     """Computes SHAP-based feature attributions and produces operator-facing explanations."""
 
-    def __init__(self, model: Any, feature_names: List[str]):
+    def __init__(self, model: Any, feature_names: List[str], scaler: Optional[Any] = None):
         self.model = model
         self.feature_names = feature_names
+        self.scaler = scaler
         self.explainer: Optional[shap.TreeExplainer] = None
 
         try:
@@ -71,14 +72,69 @@ class MineExplainer:
         """
         row_ordered = features_row[self.feature_names].copy()
 
-        # If SHAP is active, compute exact shap values
+        # Scale features if model was trained with a standard scaler
+        if self.scaler is not None:
+            try:
+                row_scaled = pd.DataFrame(self.scaler.transform(row_ordered), columns=self.feature_names)
+            except Exception:
+                row_scaled = row_ordered
+        else:
+            row_scaled = row_ordered
+
+        # Fast Path 1: Native XGBoost pred_contribs (C++ optimized TreeSHAP, < 1ms)
+        try:
+            if hasattr(self.model, "get_booster"):
+                import xgboost as xgb
+                booster = self.model.get_booster()
+                dmat = xgb.DMatrix(row_scaled)
+                contribs = booster.predict(dmat, pred_contribs=True)
+                
+                # Handle binary vs multiclass output
+                if len(contribs.shape) == 3:
+                    # Shape: [1, num_classes, num_features + 1]
+                    class_contrib = contribs[0, -1, :-1]
+                elif len(contribs.shape) == 2:
+                    # Shape: [1, num_features + 1]
+                    class_contrib = contribs[0, :-1]
+                else:
+                    class_contrib = contribs[:-1]
+
+                class_abs = np.abs(class_contrib)
+                top_indices = np.argsort(class_abs)[::-1][:top_k]
+                total_impact = np.sum(class_abs[top_indices]) + 1e-8
+
+                top_factors = []
+                factor_impacts = {}
+                human_explanations = []
+
+                for idx in top_indices:
+                    f_name = self.feature_names[idx]
+                    f_val = float(row_ordered.iloc[0, idx])
+                    f_impact_pct = round(float((class_abs[idx] / total_impact) * 100.0), 1)
+                    direction = "Increasing" if class_contrib[idx] >= 0 else "Mitigating"
+
+                    top_factors.append(f_name)
+                    factor_impacts[f_name] = f_impact_pct
+                    desc = GEOTECH_FACTOR_DESCRIPTIONS.get(f_name, f"Feature '{f_name}'")
+                    human_explanations.append(
+                        f"{desc} (value: {round(f_val, 3)}, impact: +{f_impact_pct}%)"
+                    )
+
+                return {
+                    "top_factors": top_factors,
+                    "factor_impacts": factor_impacts,
+                    "human_explanations": human_explanations
+                }
+        except Exception as e:
+            logger.debug("Fast XGBoost TreeSHAP unavailable, using standard TreeExplainer: %s", e)
+
+        # Path 2: Standard cached TreeExplainer
         if self.explainer is not None:
             try:
-                shap_values = self.explainer.shap_values(row_ordered)
+                shap_values = self.explainer.shap_values(row_scaled)
 
                 # For multiclass, shap_values is a list of arrays (one per class) or 3D array
                 if isinstance(shap_values, list):
-                    # Use the highest risk class (e.g. CRITICAL or HIGH, last class)
                     class_shap = np.abs(shap_values[-1][0])
                     signed_shap = shap_values[-1][0]
                 elif len(shap_values.shape) == 3:

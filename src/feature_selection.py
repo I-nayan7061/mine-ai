@@ -38,11 +38,32 @@ class FeatureSelector:
         non_constant = variances[variances > 1e-6].index.tolist()
         X_filtered = X[non_constant].copy()
 
-        # 2. Prune highly collinear features (|r| > 0.95)
+        # 2. Prune highly collinear features (|r| > 0.95) with target awareness
         corr_matrix = X_filtered.corr().abs()
-        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-        to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
-        X_filtered = X_filtered.drop(columns=to_drop)
+        # Encode string labels if necessary
+        if y.dtype == object:
+            y_encoded = pd.Categorical(y).codes
+        else:
+            y_encoded = y
+
+        # Precompute simple target association to keep the more informative feature in each collinear pair
+        target_relevance = X_filtered.apply(lambda col: abs(float(np.corrcoef(col, y_encoded)[0, 1])) if col.std() > 1e-6 else 0.0)
+        target_relevance = target_relevance.fillna(0.0)
+
+        to_drop = set()
+        cols = list(X_filtered.columns)
+        for i in range(len(cols)):
+            for j in range(i + 1, len(cols)):
+                c1, c2 = cols[i], cols[j]
+                if c1 not in to_drop and c2 not in to_drop:
+                    if corr_matrix.loc[c1, c2] > 0.95:
+                        # Drop the feature with lower relevance to target
+                        if target_relevance.get(c1, 0.0) >= target_relevance.get(c2, 0.0):
+                            to_drop.add(c2)
+                        else:
+                            to_drop.add(c1)
+
+        X_filtered = X_filtered.drop(columns=list(to_drop))
         logger.info("Pruned %d collinear features; %d features remaining.", len(to_drop), X_filtered.shape[1])
 
         # 3. Supervised Importance via Random Forest & Mutual Information

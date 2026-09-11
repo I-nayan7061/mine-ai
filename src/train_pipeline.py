@@ -30,6 +30,7 @@ from .feature_selection import FeatureSelector
 from .preprocessing import Preprocessor
 from .spatial_features import MineSpatialGraph
 from .tilt_features import extract_tilt_features
+from .environmental_features import extract_environmental_features
 from .utils import get_logger, save_artifact, save_json
 from .vibration_features import extract_vibration_features
 
@@ -89,6 +90,22 @@ def extract_features_from_isolated_windows(
             "geom_stability_composite": round(float(tilt_feats["tilt_stability_index"] * disp_feats["disp_stability_index"]), 4)
         }
 
+        # 6. Meteorological & Satellite Earth Observation Features
+        w_dict = {}
+        s_dict = {}
+        if "weather_rain_cum_24h_mm" in data.columns:
+            w_dict["rain_rate_mm_h"] = float(data["weather_rain_rate_mm_h"].iloc[-1])
+            w_dict["rain_cum_24h_mm"] = float(data["weather_rain_cum_24h_mm"].iloc[-1])
+            w_dict["rain_cum_72h_mm"] = float(data["weather_rain_cum_72h_mm"].iloc[-1])
+            w_dict["soil_moisture_deep"] = float(data["weather_soil_moisture_deep"].iloc[-1])
+            w_dict["ambient_temp_c"] = float(data["weather_ambient_temp_c"].iloc[-1])
+        if "satellite_insar_velocity_mm_yr" in data.columns:
+            s_dict["sentinel1_insar_velocity_mm_yr"] = float(data["satellite_insar_velocity_mm_yr"].iloc[-1])
+            s_dict["sentinel2_ndvi_anomaly"] = float(data["satellite_ndvi_anomaly"].iloc[-1])
+            s_dict["landsat_thermal_anomaly_k"] = float(data["satellite_thermal_anomaly_k"].iloc[-1])
+
+        env_feats = extract_environmental_features(w_dict, s_dict, disp_feats)
+
         # Merge all candidate features
         row = {}
         row.update(vib_feats)
@@ -96,6 +113,7 @@ def extract_features_from_isolated_windows(
         row.update(disp_feats)
         row.update(spatial_feats)
         row.update(interaction_feats)
+        row.update(env_feats)
 
         feature_rows.append(row)
         labels.append(win["risk_label"])
@@ -105,6 +123,10 @@ def extract_features_from_isolated_windows(
     y = pd.Series(labels, name="risk_label")
     t_series = pd.Series(timestamps, name="timestamp")
     return X, y, t_series
+
+
+# Alias for backward compatibility
+extract_features_from_windows = extract_features_from_isolated_windows
 
 
 def run_full_training_pipeline():

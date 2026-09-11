@@ -136,8 +136,26 @@ class MineScenarioGenerator:
                     labels.append("CRITICAL" if spatial_attenuation > 0.35 else "HIGH")
 
             # Assemble rows
+            # Cycle-dependent Indian meteorological & satellite profiles
+            cycle_env_profiles = {
+                1: {"rain_rate": 0.0, "rain_24h": 2.5, "rain_72h": 8.0, "soil_deep": 0.22, "temp_c": 34.0, "insar_vel": -12.5, "ndvi_anom": -0.02, "therm_anom": 1.2},
+                2: {"rain_rate": 2.4, "rain_24h": 28.5, "rain_72h": 65.0, "soil_deep": 0.38, "temp_c": 29.5, "insar_vel": -21.0, "ndvi_anom": -0.12, "therm_anom": 2.8},
+                3: {"rain_rate": 12.5, "rain_24h": 82.0, "rain_72h": 175.0, "soil_deep": 0.54, "temp_c": 26.2, "insar_vel": -38.5, "ndvi_anom": -0.28, "therm_anom": 4.2},
+                4: {"rain_rate": 4.0, "rain_24h": 45.0, "rain_72h": 120.0, "soil_deep": 0.48, "temp_c": 27.8, "insar_vel": -44.2, "ndvi_anom": -0.34, "therm_anom": 5.5}
+            }
+            env = cycle_env_profiles.get(cycle_id, cycle_env_profiles[2])
+
             for i in range(duration_seconds):
                 curr_t = start_time + timedelta(seconds=int(t[i]))
+                # Modulate environmental values slightly with temporal creep
+                tau_mod = norm_t[i]
+                rain_rate_val = round(max(0.0, env["rain_rate"] + float(self.rng.normal(0, 0.1))), 2)
+                rain_24h_val = round(env["rain_24h"] + tau_mod * 2.0, 2)
+                rain_72h_val = round(env["rain_72h"] + tau_mod * 4.0, 2)
+                insar_vel_val = round(env["insar_vel"] - (tau_mod * 3.0 * spatial_attenuation), 2)
+                ndvi_anom_val = round(env["ndvi_anom"] - (tau_mod * 0.05 * spatial_attenuation), 3)
+                therm_anom_val = round(env["therm_anom"] + (tau_mod * 0.4 * spatial_attenuation), 2)
+
                 records.append({
                     "timestamp": curr_t.isoformat(),
                     "node_id": node_id,
@@ -145,6 +163,16 @@ class MineScenarioGenerator:
                     "tilt_y": round(float(tilt_y[i]), 4),
                     "vibration": round(float(max(0.0, vib[i])), 4),
                     "displacement_mm": round(float(disp[i]), 4),
+                    # Meteorological Data
+                    "weather_rain_rate_mm_h": rain_rate_val,
+                    "weather_rain_cum_24h_mm": rain_24h_val,
+                    "weather_rain_cum_72h_mm": rain_72h_val,
+                    "weather_soil_moisture_deep": env["soil_deep"],
+                    "weather_ambient_temp_c": env["temp_c"],
+                    # Satellite Earth Observation Data
+                    "satellite_insar_velocity_mm_yr": insar_vel_val,
+                    "satellite_ndvi_anomaly": ndvi_anom_val,
+                    "satellite_thermal_anomaly_k": therm_anom_val,
                     "cycle_id": f"Cycle_{cycle_id:02d}",
                     "risk_label": labels[i],
                     "data_type": DATA_TYPE

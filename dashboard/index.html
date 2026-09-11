@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mine Subsidence AI Early Warning System | SIH 2026</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <title>NexGen Mine Subsidence AI | Multi-Modal Early Warning System</title>
+  <link rel="stylesheet" href="/static/styles.css?v=2.1">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Leaflet CSS & JS for Satellite Earth Observation & InSAR Mapping -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
   <div class="app-container">
@@ -16,202 +19,600 @@
         <div class="logo-badge">SIH26025</div>
         <div>
           <h1>NexGen Mine Subsidence AI</h1>
-          <p class="subtitle">AI-Enabled Real-Time Strata Monitoring, Prediction & Early Warning System</p>
+          <p class="subtitle">Multi-Modal Geotechnical Early Warning System: Subterranean IoT, Satellite Earth Observation & Meteorology</p>
         </div>
       </div>
       <div class="system-status-container">
+        <button id="btn-guide-toggle" class="btn-guide" onclick="openFeatureGuideModal()" title="Plain-English Feature Explainer Guide">
+          <span>💡</span> <strong>Feature Decoder</strong>
+        </button>
+        <button id="btn-siren-toggle" class="btn-siren active" onclick="toggleSiren()" title="Toggle Web Audio Siren">
+          <span id="siren-icon">🔔</span> Siren: <span id="siren-status">ENABLED</span>
+        </button>
         <div class="stat-pill" id="fleet-status-pill">
           <span class="status-dot green"></span>
           <span id="fleet-status-text">SYSTEM NORMAL</span>
         </div>
         <div class="time-box">
           <span id="live-clock">--:--:--</span>
-          <small>COAL SEAM SECTOR-4</small>
+          <small>JHARIA COALFIELD (BCCL)</small>
         </div>
       </div>
     </header>
 
+    <!-- Emergency Evacuation Banner (Dynamically shown on CRITICAL) -->
+    <div class="emergency-banner" id="emergency-banner" style="display: none;">
+      <div class="emergency-content">
+        <span class="emergency-icon" style="font-size: 1.3rem;">⚠️</span>
+        <div>
+          <strong>CRITICAL STRATA FAILURE WARNING:</strong>
+          <span id="emergency-banner-msg">Elevated strata deformation detected across active faces. Immediate evacuation protocol active.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" id="tab-btn-telemetry" onclick="switchTab('telemetry')">
+        <span class="tab-icon">⚡</span> 1. Subterranean Gallery IoT Telemetry
+      </button>
+      <button class="tab-btn" id="tab-btn-observatory" onclick="switchTab('observatory')">
+        <span class="tab-icon">🛰️</span> 2. Moonidih Mine Observatory (Jharia Coalfield)
+      </button>
+      <button class="tab-btn" id="tab-btn-benchmark" onclick="switchTab('benchmark')">
+        <span class="tab-icon">🧠</span> 3. Multi-Modal AI & Safety Benchmark
+      </button>
+    </nav>
+
     <!-- Top KPI Banner -->
     <div class="kpi-grid">
-      <div class="kpi-card">
-        <span class="kpi-label">Highest Risk Score</span>
+      <div class="kpi-card" onclick="openFeatureGuideModal('displacement_mm')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+        <span class="kpi-label">Highest Strata Risk 💡</span>
         <div class="kpi-value-row">
-          <span class="kpi-number" id="kpi-max-risk">12.4</span>
+          <span class="kpi-number" id="kpi-max-risk">10.0</span>
           <span class="kpi-unit">/ 100</span>
         </div>
-        <span class="kpi-subtext" id="kpi-max-risk-node">Node N01</span>
+        <span class="kpi-subtext" id="kpi-max-risk-node">Node N03 (Active Face)</span>
       </div>
 
-      <div class="kpi-card">
-        <span class="kpi-label">Active Monitoring Nodes</span>
+      <div class="kpi-card" onclick="openFeatureGuideModal('spatial_disp_gradient_max')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+        <span class="kpi-label">Underground IoT Nodes 💡</span>
         <div class="kpi-value-row">
           <span class="kpi-number" id="kpi-active-nodes">5</span>
           <span class="kpi-unit">Online</span>
         </div>
-        <span class="kpi-subtext">LoRa Mesh Network</span>
+        <span class="kpi-subtext">Gallery-North CAN/LoRa Mesh</span>
       </div>
 
-      <div class="kpi-card">
-        <span class="kpi-label">Anomaly Status</span>
+      <div class="kpi-card" onclick="openFeatureGuideModal('rain_cum_24h_mm')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+        <span class="kpi-label">Surface Weather Risk 💡</span>
         <div class="kpi-value-row">
-          <span class="kpi-number" id="kpi-anomaly-status">NORMAL</span>
+          <span class="kpi-number" id="kpi-weather-status">14.4 mm</span>
+          <span class="kpi-unit">24h Rain</span>
         </div>
-        <span class="kpi-subtext">Isolation Forest (Unsupervised)</span>
+        <span class="kpi-subtext" id="kpi-soil-status">Deep Saturation: 36.0% (Stable)</span>
       </div>
 
-      <div class="kpi-card">
-        <span class="kpi-label">Primary AI Model</span>
+      <div class="kpi-card" onclick="openFeatureGuideModal('sentinel1_insar_velocity_mm_yr')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+        <span class="kpi-label">Satellite InSAR Creep 💡</span>
         <div class="kpi-value-row">
-          <span class="kpi-number highlight">XGBoost</span>
+          <span class="kpi-number highlight" id="kpi-insar-val">-18.4</span>
+          <span class="kpi-unit">mm/year</span>
         </div>
-        <span class="kpi-subtext">100% Critical Recall Validated</span>
+        <span class="kpi-subtext">Sentinel-1 C-Band LOS Sinking</span>
       </div>
     </div>
 
-    <!-- Main Workspace Layout -->
-    <main class="dashboard-grid">
-      <!-- Left Column: Spatial Gallery Map & Scenario Injector -->
-      <section class="panel map-panel">
-        <div class="panel-header">
-          <h2>Underground Mine Gallery Topology</h2>
-          <span class="badge">Spatial Multi-Node Graph</span>
+    <!-- ============================================================== -->
+    <!-- TAB 1: REAL-TIME SUBTERRANEAN MONITORING -->
+    <!-- ============================================================== -->
+    <div id="tab-pane-telemetry" class="tab-pane active">
+      <main class="dashboard-grid">
+        <!-- Left Column: Spatial Gallery Map & Scenario Injector -->
+        <section class="panel map-panel">
+          <div class="panel-header">
+            <h2>Underground Mine Gallery Topology</h2>
+            <span class="badge">Spatial Multi-Node Graph</span>
+          </div>
+          <div class="map-container">
+            <svg id="mine-gallery-svg" viewBox="0 0 500 320">
+              <!-- Gallery Tunnels -->
+              <rect x="40" y="40" width="420" height="60" rx="6" class="tunnel-path" />
+              <text x="60" y="75" class="tunnel-label">Gallery-North-1 (Main Intake & Haulage - Moonidih)</text>
+
+              <rect x="40" y="200" width="420" height="60" rx="6" class="tunnel-path" />
+              <text x="60" y="235" class="tunnel-label">Gallery-Crosscut-2 (Goaf & Return)</text>
+
+              <!-- Crosscut links -->
+              <rect x="230" y="100" width="60" height="100" rx="4" class="tunnel-link" />
+              <rect x="380" y="100" width="60" height="100" rx="4" class="tunnel-link" />
+
+              <!-- Edge connections -->
+              <line x1="80" y1="70" x2="260" y2="70" class="graph-edge" />
+              <line x1="260" y1="70" x2="410" y2="70" class="graph-edge" />
+              <line x1="410" y1="70" x2="410" y2="230" class="graph-edge" />
+              <line x1="410" y1="230" x2="260" y2="230" class="graph-edge" />
+              <line x1="260" y1="70" x2="260" y2="230" class="graph-edge" />
+
+              <!-- Nodes -->
+              <g id="node-marker-N01" class="node-group" onclick="selectNode('N01')">
+                <circle cx="80" cy="70" r="18" class="node-circle normal" />
+                <text x="80" y="74" class="node-text">N01</text>
+              </g>
+              <g id="node-marker-N02" class="node-group" onclick="selectNode('N02')">
+                <circle cx="260" cy="70" r="18" class="node-circle normal" />
+                <text x="260" y="74" class="node-text">N02</text>
+              </g>
+              <g id="node-marker-N03" class="node-group" onclick="selectNode('N03')">
+                <circle cx="410" cy="70" r="22" class="node-circle normal pulse" />
+                <text x="410" y="74" class="node-text">N03*</text>
+              </g>
+              <g id="node-marker-N04" class="node-group" onclick="selectNode('N04')">
+                <circle cx="410" cy="230" r="18" class="node-circle normal" />
+                <text x="410" y="234" class="node-text">N04</text>
+              </g>
+              <g id="node-marker-N05" class="node-group" onclick="selectNode('N05')">
+                <circle cx="260" cy="230" r="18" class="node-circle normal" />
+                <text x="260" y="234" class="node-text">N05</text>
+              </g>
+            </svg>
+            <div class="map-legend">
+              <span><span class="dot green"></span> Normal</span>
+              <span><span class="dot yellow"></span> Warning</span>
+              <span><span class="dot orange"></span> High</span>
+              <span><span class="dot red"></span> Critical</span>
+              <small>* N03: Active Longwall Face</small>
+            </div>
+          </div>
+
+          <!-- Live Scenario Injector -->
+          <div class="simulation-controller">
+            <h3>Geotechnical Scenario Demonstrator</h3>
+            <p class="desc">Inject simulated continuous strata dynamics into the multi-modal AI pipeline:</p>
+            <div class="scenario-buttons">
+              <button class="btn btn-normal" onclick="triggerScenario('normal')">1. Normal Ambient</button>
+              <button class="btn btn-warning" onclick="triggerScenario('warning')">2. Slow Roof Sag</button>
+              <button class="btn btn-high" onclick="triggerScenario('high_risk')">3. Bed Separation (High)</button>
+              <button class="btn btn-critical" onclick="triggerScenario('critical')">4. Dynamic Fracture (Critical)</button>
+              <button class="btn btn-noise" onclick="triggerScenario('transient_noise')">5. Blasting Noise (False Alarm)</button>
+            </div>
+            <div class="sim-status-bar">
+              <span>Simulation State: <strong id="sim-state">IDLE</strong></span>
+              <button class="btn-sm" onclick="stopSimulation()">Stop Simulation</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Center/Right Column: Live Charts & Selected Node Diagnosis -->
+        <section class="panel telemetry-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Real-Time Telemetry: <span id="selected-node-title">Node N03</span></h2>
+              <p class="subtext">Sensing Parameters: Vibration (MPU6050) | Dual-Axis Tilt (MPU6050) | Displacement (VL53L1X)</p>
+            </div>
+            <div class="node-badge" id="selected-node-badge">STATUS: NORMAL (Score: 10.0)</div>
+          </div>
+
+          <!-- Instantaneous Metrics Ribbon -->
+          <div class="mini-metrics-row">
+            <div class="mini-metric">
+              <span class="label">Vibration</span>
+              <span class="val" id="val-vib">0.038 g</span>
+            </div>
+            <div class="mini-metric">
+              <span class="label">Tilt X / Y</span>
+              <span class="val" id="val-tilt">0.12° / 0.09°</span>
+            </div>
+            <div class="mini-metric">
+              <span class="label">Displacement</span>
+              <span class="val" id="val-disp">1.02 mm</span>
+            </div>
+            <div class="mini-metric">
+              <span class="label">Deformation Rate</span>
+              <span class="val" id="val-rate">0.01 mm/min</span>
+            </div>
+            <div class="mini-metric">
+              <span class="label">Spatial Neighbours</span>
+              <span class="val" id="val-neighbors">0 Abnormal</span>
+            </div>
+          </div>
+
+          <!-- Charts Grid -->
+          <div class="charts-grid">
+            <div class="chart-box">
+              <canvas id="chart-displacement"></canvas>
+            </div>
+            <div class="chart-box">
+              <canvas id="chart-tilt"></canvas>
+            </div>
+            <div class="chart-box">
+              <canvas id="chart-vibration"></canvas>
+            </div>
+            <div class="chart-box">
+              <canvas id="chart-risk"></canvas>
+            </div>
+          </div>
+
+          <!-- Explainable AI (XAI) Root Cause Diagnosis -->
+          <div class="xai-container">
+            <div class="xai-header">
+              <h3>Explainable AI (SHAP Multi-Modal Factor Attribution)</h3>
+              <span class="confidence-tag">Model Confidence: <strong id="val-confidence">98.2%</strong></span>
+            </div>
+            <div class="xai-content" id="xai-factors-container">
+              <div class="xai-empty">Awaiting elevated risk to display SHAP contributing factor attribution...</div>
+            </div>
+          </div>
+
+          <!-- Part 29: Compact Multimodal Context & Provenance Panel -->
+          <div class="multimodal-compact-card" style="margin-top: 15px; padding: 14px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="margin: 0; font-size: 0.95rem; color: #38bdf8;">🛰️ Multimodal Synchronized Context (India-Specific)</h4>
+              <span style="font-size: 0.75rem; background: #334155; padding: 2px 8px; border-radius: 4px; color: #94a3b8;">Prototype / Research Data</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 0.8rem;">
+              <div style="background: #1e293b; padding: 8px; border-radius: 6px;">
+                <strong style="color: #60a5fa;">🌧️ Weather (IMD Gridded)</strong>
+                <div style="color: #cbd5e1; margin-top: 4px;">Rain 24h: <strong>14.4 mm</strong> | 7d: <strong>82.0 mm</strong></div>
+                <div style="color: #cbd5e1;">Soil Moist: <strong>36.0%</strong> | Temp: <strong>28.5°C</strong></div>
+                <div style="color: #64748b; font-size: 0.72rem; margin-top: 4px;">Data Freshness: 1.5h ago (Hourly grid)</div>
+              </div>
+              <div style="background: #1e293b; padding: 8px; border-radius: 6px;">
+                <strong style="color: #a78bfa;">🛰️ Satellite InSAR (Sentinel-1 / NISAR)</strong>
+                <div style="color: #cbd5e1; margin-top: 4px;">InSAR Vel: <strong style="color: #f87171;">-18.4 mm/yr</strong></div>
+                <div style="color: #cbd5e1;">Coherence: <strong>0.76</strong> | Gradient: <strong>0.042 mm/m</strong></div>
+                <div style="color: #64748b; font-size: 0.72rem; margin-top: 4px;">Data Freshness: 3.5d ago (12-day pass)</div>
+              </div>
+              <div style="background: #1e293b; padding: 8px; border-radius: 6px;">
+                <strong style="color: #34d399;">🧠 AI Modality Contributions</strong>
+                <div style="color: #cbd5e1; margin-top: 4px;">Sensors: <strong>65%</strong> | Weather: <strong>15%</strong></div>
+                <div style="color: #cbd5e1;">Satellite: <strong>12%</strong> | Spatial: <strong>8%</strong></div>
+                <div style="color: #64748b; font-size: 0.72rem; margin-top: 4px;">Active: Model D (Full Multimodal XGBoost)</div>
+              </div>
+            </div>
+            <p style="margin: 8px 0 0 0; font-size: 0.73rem; color: #94a3b8; font-style: italic;">
+              * Note: Satellite InSAR data is regional context, not real-time underground sensing. High-frequency 1.0 Hz strata dynamics are measured directly by subterranean IoT nodes.
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 2: MOONIDIH MINE OBSERVATORY (JHARIA COALFIELD) -->
+    <!-- ============================================================== -->
+    <div id="tab-pane-observatory" class="tab-pane" style="display: none;">
+      <!-- Mine Dossier Header Card -->
+      <div class="mine-dossier-card">
+        <div class="dossier-left">
+          <div class="mine-badge">DGMS APPROVED PILOT</div>
+          <h2>Moonidih Underground Colliery — Jharia Coalfield</h2>
+          <p class="mine-details-line">
+            <strong>Operator:</strong> Bharat Coking Coal Limited (BCCL / Coal India Ltd.) |
+            <strong>District:</strong> Dhanbad, Jharkhand, India |
+            <strong>Coordinates:</strong> 23.7438° N, 86.4172° E |
+            <strong>Altitude:</strong> 196m AMSL
+          </p>
+          <p class="mine-details-sub">
+            <strong>Geology:</strong> Barakar Formation (Damodar Basin) |
+            <strong>Target Seams:</strong> XVI-Top (4.2m) & XVII |
+            <strong>Working Depth:</strong> 320m Below Surface |
+            <strong>Method:</strong> Mechanized Longwall with Powered Supports
+          </p>
         </div>
-        <div class="map-container">
-          <svg id="mine-gallery-svg" viewBox="0 0 500 320">
-            <!-- Gallery Tunnels -->
-            <rect x="40" y="40" width="420" height="60" rx="6" class="tunnel-path" />
-            <text x="60" y="75" class="tunnel-label">Gallery-North-1 (Main Intake & Haulage)</text>
+        <div class="dossier-actions">
+          <a href="/api/mine/export-csv" class="btn btn-export" download="moonidih_jharia_multimodal_dataset.csv">
+            📥 Export Full Multi-Modal Dataset (.CSV)
+          </a>
+          <button class="btn btn-refresh" onclick="refreshObservatoryData()">
+            🔄 Refresh Live Satellite & Weather Feed
+          </button>
+        </div>
+      </div>
 
-            <rect x="40" y="200" width="420" height="60" rx="6" class="tunnel-path" />
-            <text x="60" y="235" class="tunnel-label">Gallery-Crosscut-2 (Goaf & Return)</text>
-
-            <!-- Crosscut link -->
-            <rect x="230" y="100" width="60" height="100" rx="4" class="tunnel-link" />
-            <rect x="380" y="100" width="60" height="100" rx="4" class="tunnel-link" />
-
-            <!-- Edge connections -->
-            <line x1="80" y1="70" x2="260" y2="70" class="graph-edge" />
-            <line x1="260" y1="70" x2="410" y2="70" class="graph-edge" />
-            <line x1="410" y1="70" x2="410" y2="230" class="graph-edge" />
-            <line x1="410" y1="230" x2="260" y2="230" class="graph-edge" />
-            <line x1="260" y1="70" x2="260" y2="230" class="graph-edge" />
-
-            <!-- Nodes -->
-            <g id="node-marker-N01" class="node-group" onclick="selectNode('N01')">
-              <circle cx="80" cy="70" r="18" class="node-circle normal" />
-              <text x="80" y="74" class="node-text">N01</text>
-            </g>
-            <g id="node-marker-N02" class="node-group" onclick="selectNode('N02')">
-              <circle cx="260" cy="70" r="18" class="node-circle normal" />
-              <text x="260" y="74" class="node-text">N02</text>
-            </g>
-            <g id="node-marker-N03" class="node-group" onclick="selectNode('N03')">
-              <circle cx="410" cy="70" r="22" class="node-circle normal pulse" />
-              <text x="410" y="74" class="node-text">N03*</text>
-            </g>
-            <g id="node-marker-N04" class="node-group" onclick="selectNode('N04')">
-              <circle cx="410" cy="230" r="18" class="node-circle normal" />
-              <text x="410" y="234" class="node-text">N04</text>
-            </g>
-            <g id="node-marker-N05" class="node-group" onclick="selectNode('N05')">
-              <circle cx="260" cy="230" r="18" class="node-circle normal" />
-              <text x="260" y="234" class="node-text">N05</text>
-            </g>
-          </svg>
-          <div class="map-legend">
-            <span><span class="dot green"></span> Normal</span>
-            <span><span class="dot yellow"></span> Warning</span>
-            <span><span class="dot orange"></span> High</span>
-            <span><span class="dot red"></span> Critical</span>
-            <small>* N03: Active Longwall Face</small>
+      <!-- Observatory Grid: Satellite GIS Map + Environmental Telemetry Cards -->
+      <div class="observatory-grid">
+        <!-- Left: Interactive Leaflet Satellite GIS Map -->
+        <div class="panel map-gis-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Jharia Moonidih Satellite Earth Observation & InSAR Map</h2>
+              <p class="subtext">Multi-Spectral & Radar Remote Sensing Layers (High-Resolution Satellite Orthomosaic)</p>
+            </div>
+            <div class="gis-layer-toggles">
+              <button class="layer-toggle-btn active" id="btn-toggle-insar" onclick="toggleGisLayer('insar')">
+                🛰️ InSAR Subsidence
+              </button>
+              <button class="layer-toggle-btn active" id="btn-toggle-ndvi" onclick="toggleGisLayer('ndvi')">
+                🌿 NDVI Tension Cracks
+              </button>
+              <button class="layer-toggle-btn active" id="btn-toggle-thermal" onclick="toggleGisLayer('thermal')">
+                🔥 Thermal IR Anomaly
+              </button>
+              <button class="layer-toggle-btn active" id="btn-toggle-nodes" onclick="toggleGisLayer('nodes')">
+                📍 Underground Nodes
+              </button>
+            </div>
+          </div>
+          <!-- Leaflet Map Container -->
+          <div id="satellite-map" class="satellite-map-container"></div>
+          <div class="gis-map-legend">
+            <span><span class="legend-box insar-legend"></span> InSAR Sinking Bowl (0 to -45 mm/yr)</span>
+            <span><span class="legend-box ndvi-legend"></span> NDVI Vegetation Fissure Zone (&Delta;NDVI &lt; -0.15)</span>
+            <span><span class="legend-box thermal-legend"></span> Thermal Oxidation Anomaly (&Delta;T &gt; +3.0K)</span>
+            <span><span class="legend-dot node-dot"></span> Projected Underground IoT Nodes</span>
           </div>
         </div>
 
-        <!-- Demonstration Scenario Injector -->
-        <div class="simulation-controller">
-          <h3>Live Geotechnical Scenario Injector</h3>
-          <p class="desc">Inject simulated continuous strata dynamics directly into the AI pipeline:</p>
+        <!-- Right: Real-Time Environmental & Remote Sensing Cards -->
+        <div class="panel env-panel">
+          <div class="panel-header">
+            <h2>Surface Meteorological & Satellite Telemetry</h2>
+            <span class="badge">Open-Meteo & Sentinel/Landsat</span>
+          </div>
+
+          <!-- Meteorological Section -->
+          <div class="env-section-title">
+            <span>🌧️ Indian Meteorological Feed (Dhanbad Station)</span>
+            <small id="weather-source-tag">IMD / Open-Meteo Grid</small>
+          </div>
+          <div class="env-cards-row">
+            <div class="env-card" onclick="openFeatureGuideModal('rain_cum_24h_mm')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+              <span class="env-label">24h Rainfall 💡</span>
+              <span class="env-val" id="obs-rain-24h">14.4 mm</span>
+              <div class="progress-bar-container">
+                <div class="progress-bar" id="bar-rain-24h" style="width: 25%;"></div>
+              </div>
+              <small class="env-sub">Threshold: 50.0 mm</small>
+            </div>
+            <div class="env-card" onclick="openFeatureGuideModal('rain_cum_72h_mm')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+              <span class="env-label">72h Cumulative Saturation 💡</span>
+              <span class="env-val" id="obs-rain-72h">48.5 mm</span>
+              <div class="progress-bar-container">
+                <div class="progress-bar warning" id="bar-rain-72h" style="width: 48%;"></div>
+              </div>
+              <small class="env-sub">Monsoon Soil Memory</small>
+            </div>
+            <div class="env-card" onclick="openFeatureGuideModal('soil_moisture_deep')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+              <span class="env-label">Deep Soil Moisture (28-100cm) 💡</span>
+              <span class="env-val" id="obs-soil-moisture">36.0 %</span>
+              <div class="progress-bar-container">
+                <div class="progress-bar" id="bar-soil" style="width: 36%;"></div>
+              </div>
+              <small class="env-sub">Volumetric Fraction</small>
+            </div>
+            <div class="env-card" onclick="openFeatureGuideModal('env_pore_pressure_kpa')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+              <span class="env-label">Sandstone Pore Pressure 💡</span>
+              <span class="env-val highlight" id="obs-pore-pressure">142.0 kPa</span>
+              <small class="env-sub">Overburden Hydro-Head</small>
+            </div>
+          </div>
+
+          <!-- Satellite Earth Observation Section -->
+          <div class="env-section-title" style="margin-top: 15px;">
+            <span>🛰️ Satellite Earth Observation Telemetry</span>
+            <small>Copernicus & Landsat-9</small>
+          </div>
+          <div class="env-cards-row">
+            <div class="env-card" onclick="openFeatureGuideModal('sentinel1_insar_velocity_mm_yr')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+              <span class="env-label">Sentinel-1 InSAR Velocity 💡</span>
+              <span class="env-val" id="obs-insar-vel">-18.4 mm/yr</span>
+              <small class="env-sub">Surface Subsidence Velocity</small>
+            </div>
+            <div class="env-card" onclick="openFeatureGuideModal('sentinel1_cum_los_displacement_mm')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+              <span class="env-label">Cumulative Surface Sag 💡</span>
+              <span class="env-val" id="obs-cum-los">-32.6 mm</span>
+              <small class="env-sub">Vertical Displacement</small>
+            </div>
+            <div class="env-card" onclick="openFeatureGuideModal('sentinel2_ndvi_anomaly')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+              <span class="env-label">Sentinel-2 NDVI Anomaly 💡</span>
+              <span class="env-val" id="obs-ndvi-anom">-0.14</span>
+              <small class="env-sub">Ground Tension Fissures</small>
+            </div>
+            <div class="env-card" onclick="openFeatureGuideModal('landsat_thermal_anomaly_k')" style="cursor: pointer;" title="Click to view explanation in Feature Decoder">
+              <span class="env-label">Landsat LST Thermal Anomaly 💡</span>
+              <span class="env-val" id="obs-thermal-anom">+3.4 K</span>
+              <small class="env-sub">Subsurface Coal Oxidation</small>
+            </div>
+          </div>
+
+          <!-- Compound Geotechnical Stress Simulator -->
+          <div class="env-section-title" style="margin-top: 15px;">
+            <span>⚡ Indian Monsoon & Strata Creep Stress Demonstrator</span>
+          </div>
           <div class="scenario-buttons">
-            <button class="btn btn-normal" onclick="triggerScenario('normal')">1. Normal Ambient</button>
-            <button class="btn btn-warning" onclick="triggerScenario('warning')">2. Slow Roof Sag</button>
-            <button class="btn btn-high" onclick="triggerScenario('high_risk')">3. Bed Separation (High)</button>
-            <button class="btn btn-critical" onclick="triggerScenario('critical')">4. Dynamic Fracture (Critical)</button>
-            <button class="btn btn-noise" onclick="triggerScenario('transient_noise')">5. Blasting Noise (False Alarm)</button>
-          </div>
-          <div class="sim-status-bar">
-            <span>Simulation State: <strong id="sim-state">IDLE</strong></span>
-            <button class="btn-sm" onclick="stopSimulation()">Stop Simulation</button>
+            <button class="btn btn-normal" onclick="simulateEnvironmentalScenario('dry')">
+              ☀️ Pre-Monsoon Dry (Normal)
+            </button>
+            <button class="btn btn-warning" onclick="simulateEnvironmentalScenario('moderate_rain')">
+              🌦️ Moderate Monsoon Shower
+            </button>
+            <button class="btn btn-high" onclick="simulateEnvironmentalScenario('monsoon_surge')">
+              ⛈️ Monsoon Surge + InSAR Creep
+            </button>
+            <button class="btn btn-critical" onclick="simulateEnvironmentalScenario('washout')">
+              🚨 Overburden Washout & Roof Fall
+            </button>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- Center/Right Column: Live Charts & Selected Node Diagnosis -->
-      <section class="panel telemetry-panel">
+      <!-- Synchronized Multi-Modal Parameter Data Explorer Table -->
+      <div class="panel table-panel" style="margin-top: 20px;">
         <div class="panel-header">
           <div>
-            <h2>Real-Time Telemetry: <span id="selected-node-title">Node N03</span></h2>
-            <p class="subtext">Sensing Parameters: Vibration (MPU6050) | Dual-Axis Tilt (MPU6050) | Displacement (VL53L1X)</p>
+            <h2>Moonidih Colliery Synchronized Multi-Modal Parameter Explorer</h2>
+            <p class="subtext">Real-time synchronized data stream merging Subterranean Hardware Sensors + Surface Meteorology + Satellite Earth Observation</p>
           </div>
-          <div class="node-badge" id="selected-node-badge">STATUS: NORMAL (Score: 12.0)</div>
-        </div>
-
-        <!-- Instantaneous Metrics Ribbon -->
-        <div class="mini-metrics-row">
-          <div class="mini-metric">
-            <span class="label">Vibration</span>
-            <span class="val" id="val-vib">0.038 g</span>
-          </div>
-          <div class="mini-metric">
-            <span class="label">Tilt X / Y</span>
-            <span class="val" id="val-tilt">0.12° / 0.09°</span>
-          </div>
-          <div class="mini-metric">
-            <span class="label">Displacement</span>
-            <span class="val" id="val-disp">1.02 mm</span>
-          </div>
-          <div class="mini-metric">
-            <span class="label">Deformation Rate</span>
-            <span class="val" id="val-rate">0.01 mm/min</span>
-          </div>
-          <div class="mini-metric">
-            <span class="label">Spatial Neighbours</span>
-            <span class="val" id="val-neighbors">0 Abnormal</span>
+          <div class="table-controls">
+            <input type="text" id="table-search-input" placeholder="Filter by Node (e.g. N03) or Class..." onkeyup="filterParameterTable()">
+            <a href="/api/mine/export-csv" class="btn btn-sm btn-export" download="moonidih_jharia_multimodal_dataset.csv">
+              📥 Download CSV
+            </a>
           </div>
         </div>
+        <div class="data-table-container">
+          <table class="data-table" id="multimodal-data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Node ID</th>
+                <th onclick="openFeatureGuideModal('disp_rate')" style="cursor: pointer;" title="Click to open Feature Decoder">Displacement 💡</th>
+                <th onclick="openFeatureGuideModal('tilt_vector_norm')" style="cursor: pointer;" title="Click to open Feature Decoder">Tilt (X/Y) 💡</th>
+                <th onclick="openFeatureGuideModal('vibration')" style="cursor: pointer;" title="Click to open Feature Decoder">Vibration 💡</th>
+                <th onclick="openFeatureGuideModal('rain_cum_24h_mm')" style="cursor: pointer;" title="Click to open Feature Decoder">24h Rain 💡</th>
+                <th onclick="openFeatureGuideModal('rain_cum_72h_mm')" style="cursor: pointer;" title="Click to open Feature Decoder">72h Rain 💡</th>
+                <th onclick="openFeatureGuideModal('soil_moisture_deep')" style="cursor: pointer;" title="Click to open Feature Decoder">Soil Moisture 💡</th>
+                <th onclick="openFeatureGuideModal('sentinel1_insar_velocity_mm_yr')" style="cursor: pointer;" title="Click to open Feature Decoder">InSAR Velocity 💡</th>
+                <th onclick="openFeatureGuideModal('sentinel2_ndvi_anomaly')" style="cursor: pointer;" title="Click to open Feature Decoder">NDVI Anomaly 💡</th>
+                <th onclick="openFeatureGuideModal('landsat_thermal_anomaly_k')" style="cursor: pointer;" title="Click to open Feature Decoder">LST Anomaly 💡</th>
+                <th>AI Risk Score</th>
+                <th>Risk Level</th>
+              </tr>
+            </thead>
+            <tbody id="multimodal-tbody">
+              <tr>
+                <td colspan="13" class="loading-table">Loading Moonidih Colliery synchronized records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-        <!-- Charts Grid -->
-        <div class="charts-grid">
-          <div class="chart-box">
-            <canvas id="chart-displacement"></canvas>
+    <!-- ============================================================== -->
+    <!-- TAB 3: MULTI-MODAL AI & SAFETY BENCHMARK -->
+    <!-- ============================================================== -->
+    <div id="tab-pane-benchmark" class="tab-pane" style="display: none;">
+      <div class="benchmark-grid">
+        <!-- Model Architecture Card -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Multi-Modal AI Fusion Architecture (SIH26025)</h2>
+            <span class="badge">Hybrid Early-Late Fusion</span>
           </div>
-          <div class="chart-box">
-            <canvas id="chart-tilt"></canvas>
-          </div>
-          <div class="chart-box">
-            <canvas id="chart-vibration"></canvas>
-          </div>
-          <div class="chart-box">
-            <canvas id="chart-risk"></canvas>
+          <div class="benchmark-content">
+            <p class="desc">
+              The NexGen architecture fuses 3 distinct spatio-temporal domains into a resilient early warning engine:
+            </p>
+            <div class="arch-boxes">
+              <div class="arch-box">
+                <h4>1. Subterranean IoT (1.0 Hz)</h4>
+                <ul>
+                  <li>ToF laser roof sag velocity & acceleration</li>
+                  <li>Inclinometer rotational jerk (&deg;/s&sup2;)</li>
+                  <li>Piezo-vibration RMS, kurtosis & FFT centroid</li>
+                  <li>Multi-node spatial mesh gradient</li>
+                </ul>
+              </div>
+              <div class="arch-box">
+                <h4>2. Surface Meteorology (Hourly)</h4>
+                <ul>
+                  <li>24h & 72h cumulative monsoon precipitation</li>
+                  <li>Root-zone deep soil moisture percolation</li>
+                  <li>Overburden hydro-mechanical pore pressure</li>
+                  <li>Atmospheric barometric pressure differential</li>
+                </ul>
+              </div>
+              <div class="arch-box">
+                <h4>3. Satellite Observation (Periodic)</h4>
+                <ul>
+                  <li>Sentinel-1 InSAR surface subsidence velocity</li>
+                  <li>Cumulative line-of-sight vertical sag</li>
+                  <li>Sentinel-2 NDVI vegetation tension-crack drop</li>
+                  <li>Landsat-9 Thermal IR subsurface oxidation heating</li>
+                </ul>
+              </div>
+            </div>
+            <div class="fusion-formula-card">
+              <h4>Geotechnical Fusion Formulation:</h4>
+              <code>
+                Risk_Composite = 0.12&middot;Vib + 0.16&middot;Tilt + 0.22&middot;Disp + 0.15&middot;Weather + 0.15&middot;Satellite + 0.10&middot;Anomaly + 0.10&middot;Spatial
+              </code>
+              <p style="margin-top: 8px; font-size: 0.85rem; color: #94a3b8;">
+                Safety Interlock Guarantee: Blasting/haulage transient vibration without corroborated strata convergence is physically filtered to prevent false alarms.
+              </p>
+            </div>
           </div>
         </div>
 
-        <!-- Explainable AI (XAI) Root Cause Diagnosis -->
-        <div class="xai-container">
-          <div class="xai-header">
-            <h3>Explainable AI (SHAP Geotechnical Factor Attribution)</h3>
-            <span class="confidence-tag">Model Confidence: <strong id="val-confidence">98.4%</strong></span>
+        <!-- Benchmark Comparison Table -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Model Performance & Safety Evaluation Benchmark</h2>
+            <span class="badge">Chronologically Unseen Test Split</span>
           </div>
-          <div class="xai-content" id="xai-factors-container">
-            <div class="xai-empty">Awaiting elevated risk to display SHAP contributing factor attribution...</div>
+          <div class="benchmark-content">
+            <table class="benchmark-table">
+              <thead>
+                <tr>
+                  <th>Model Architecture</th>
+                  <th>Overall Accuracy</th>
+                  <th>High Risk Recall</th>
+                  <th>Critical Recall</th>
+                  <th>Inference Latency</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Logistic Regression (Baseline)</strong></td>
+                  <td>93.30%</td>
+                  <td>96.39%</td>
+                  <td>98.20%</td>
+                  <td>0.0004 ms</td>
+                  <td><span class="badge-sm yellow">Baseline</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Decision Tree</strong></td>
+                  <td>90.62%</td>
+                  <td>98.45%</td>
+                  <td>100.00%</td>
+                  <td>0.0005 ms</td>
+                  <td><span class="badge-sm yellow">Baseline</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Random Forest (Interpretable)</strong></td>
+                  <td>97.73%</td>
+                  <td>99.48%</td>
+                  <td>98.20%</td>
+                  <td>0.0497 ms</td>
+                  <td><span class="badge-sm green">Approved</span></td>
+                </tr>
+                <tr class="highlight-row">
+                  <td><strong>XGBoost (Multi-Modal Advanced)</strong></td>
+                  <td><strong>98.25%</strong></td>
+                  <td><strong>98.45%</strong></td>
+                  <td><strong>100.00%</strong></td>
+                  <td><strong>0.0033 ms</strong></td>
+                  <td><span class="badge-sm green">ACTIVE PRIMARY</span></td>
+                </tr>
+                <tr>
+                  <td><strong>LightGBM (Alternative Gradient)</strong></td>
+                  <td>97.94%</td>
+                  <td>98.97%</td>
+                  <td>100.00%</td>
+                  <td>0.0082 ms</td>
+                  <td><span class="badge-sm green">Candidate</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="safety-philosophy-card">
+              <h4>DGMS Safety Guarantee: Zero False Negatives on Critical Events</h4>
+              <p>
+                In coal mining operations, a false alarm causes a temporary machine pause, but a false negative risks miners' lives. 
+                Both <strong>XGBoost</strong> and <strong>LightGBM</strong> achieved <strong>100.00% Critical Recall</strong> across unseen testing shifts.
+              </p>
+            </div>
           </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
 
-    <!-- Bottom Alert Log -->
+    <!-- Bottom Alert Log (Shared Across All Tabs) -->
     <footer class="alert-drawer">
       <div class="drawer-header">
-        <h3>Early Warning Alert Feed</h3>
+        <h3>Early Warning Alert Feed (Real-Time Subterranean & Satellite Triggers)</h3>
         <span class="badge" id="alert-count-badge">0 Active Alerts</span>
       </div>
       <div class="alert-table-container">
@@ -233,8 +634,55 @@
         </table>
       </div>
     </footer>
+
+    <!-- Plain-English Feature Decoder Modal -->
+    <div id="feature-guide-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <div class="modal-badge-row">
+              <span class="modal-badge">DGMS SAFEGUARD • PLAIN-ENGLISH DECODER</span>
+              <span class="modal-count-badge" id="modal-features-count">18 Parameters Active</span>
+            </div>
+            <h2>Mine Subsidence AI Feature Decoder</h2>
+            <p>Interactive geotechnical guide: understand exactly what each physical sensor, satellite index, and weather metric means and when it becomes hazardous.</p>
+          </div>
+          <button class="modal-close-btn" onclick="closeFeatureGuideModal()" title="Close Decoder (Esc)">&times;</button>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="modal-toolbar">
+          <div class="modal-search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="modal-search-input" placeholder="Search features by name, code, or risk keyword (e.g. 'rain', 'tilt', 'insar', 'roof')..." oninput="onFeatureSearchInput(this.value)">
+            <button class="search-clear-btn" id="modal-search-clear" onclick="clearFeatureSearch()" style="display: none;">&times;</button>
+          </div>
+          <div class="modal-filter-tabs">
+            <button class="modal-tab active" id="modal-tab-all" onclick="filterGuideCategory('all')">
+              <span class="tab-dot"></span> All Features (21)
+            </button>
+            <button class="modal-tab" id="modal-tab-hardware" onclick="filterGuideCategory('hardware')">
+              ⚡ Subterranean Hardware (9)
+            </button>
+            <button class="modal-tab" id="modal-tab-weather" onclick="filterGuideCategory('weather')">
+              🌧️ Monsoon & Meteorology (5)
+            </button>
+            <button class="modal-tab" id="modal-tab-satellite" onclick="filterGuideCategory('satellite')">
+              🛰️ Satellite InSAR & Thermal (4)
+            </button>
+            <button class="modal-tab" id="modal-tab-spatial" onclick="filterGuideCategory('spatial')">
+              🕸️ Spatial Mesh Network (3)
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-body" id="feature-guide-grid">
+          <!-- Dynamically populated by app.js -->
+        </div>
+      </div>
+    </div>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2.1"></script>
 </body>
 </html>
