@@ -153,7 +153,7 @@ async def get_alerts(limit: int = Query(20, ge=1, le=100)):
 @router.get("/model-status")
 async def get_model_status():
     """Returns loaded models, metadata, feature list, and accuracy benchmarks."""
-    meta_path = app_config.get("paths.models_dir", "mine-ai/models") + "/model_metadata.json"
+    meta_path = app_config.resolve_path(app_config.get("paths.models_dir", "models")) / "model_metadata.json"
     try:
         metadata = load_json(meta_path)
     except Exception:
