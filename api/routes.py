@@ -15,7 +15,15 @@ from pydantic import BaseModel
 from .schemas import AlertItem, MineObservatoryData, NodeStatus, RiskPredictionResponse, SensorReadingRequest
 from src.config import app_config
 from src.db import db_manager
-from src.geo_fetcher import MOONIDIH_MINE_METADATA, get_moonidih_environmental_snapshot
+from src.geo_fetcher import (
+    MOONIDIH_MINE_METADATA,
+    PHYSICAL_SENSOR_SPECS,
+    SATELLITE_REMOTE_SENSING_SPECS,
+    WEATHER_STATION_SPECS,
+    JHARIA_ACCURACY_BENCHMARKS,
+    get_moonidih_environmental_snapshot,
+    get_jharia_physical_sensor_readings
+)
 from src.inference import MineInferencePipeline
 from src.utils import get_logger, load_json
 
@@ -353,12 +361,24 @@ async def get_jharia_moonidih_observatory():
         except Exception as e:
             logger.warning("Error reading sample records: %s", e)
 
+    # Dynamically inject live fleet state if in memory
+    physical_readings = get_jharia_physical_sensor_readings()
+    for n_id, f_data in fleet_registry.items():
+        if n_id in physical_readings["nodes"]:
+            physical_readings["nodes"][n_id]["risk_level"] = f_data.get("latest_risk_level", "NORMAL")
+            physical_readings["nodes"][n_id]["status"] = "ONLINE" if f_data.get("online", True) else "OFFLINE"
+
     return {
         "metadata": MOONIDIH_MINE_METADATA,
         "coordinates": MOONIDIH_MINE_METADATA["coordinates"],
         "weather": snapshot.get("weather", {}),
         "satellite": snapshot.get("satellite", {}),
         "geotech_indices": snapshot.get("geotech_indices", {}),
+        "physical_sensors": physical_readings,
+        "sensor_specs": PHYSICAL_SENSOR_SPECS,
+        "satellite_specs": SATELLITE_REMOTE_SENSING_SPECS,
+        "weather_specs": WEATHER_STATION_SPECS,
+        "accuracy_benchmarks": JHARIA_ACCURACY_BENCHMARKS,
         "recent_records_count": len(sample_records),
         "sample_records": sample_records
     }

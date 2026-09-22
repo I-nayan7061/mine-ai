@@ -1,7 +1,7 @@
 {
-  "cached_at": 1789149625.8457284,
+  "cached_at": 1789189642.943343,
   "data": {
-    "timestamp": "2026-09-11T18:00:23.121145+00:00",
+    "timestamp": "2026-09-12T05:07:22.360538+00:00",
     "mine_id": "BCCL-MOONIDIH-01",
     "location": "Moonidih, Jharia Coalfield, Dhanbad, Jharkhand",
     "coordinates": {
@@ -10,14 +10,14 @@
     },
     "weather": {
       "rain_rate_mm_h": 0.0,
-      "rain_cum_24h_mm": 14.4,
-      "rain_cum_72h_mm": 28.9,
-      "soil_moisture_shallow": 0.233,
-      "soil_moisture_deep": 0.252,
-      "ambient_temp_c": 24.9,
-      "relative_humidity_pct": 95.0,
-      "surface_pressure_hpa": 987.8,
-      "wind_speed_kmh": 8.4,
+      "rain_cum_24h_mm": 5.9,
+      "rain_cum_72h_mm": 37.9,
+      "soil_moisture_shallow": 0.229,
+      "soil_moisture_deep": 0.254,
+      "ambient_temp_c": 28.0,
+      "relative_humidity_pct": 82.0,
+      "surface_pressure_hpa": 989.3,
+      "wind_speed_kmh": 13.8,
       "source": "Open-Meteo Live IMD-Calibrated Stream (Dhanbad, JH)"
     },
     "satellite": {
@@ -32,8 +32,8 @@
       "source": "Sentinel-1 SAR / Sentinel-2 MSI / Landsat-9 TIRS"
     },
     "geotech_indices": {
-      "hydraulic_head_pressure_kpa": 162.2,
-      "seepage_infiltration_index": 0.245,
+      "hydraulic_head_pressure_kpa": 178.5,
+      "seepage_infiltration_index": 0.291,
       "surface_tension_fissure_index": 0.35
     }
   }

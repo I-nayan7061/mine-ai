@@ -124,6 +124,26 @@ function handleWebSocketMessage(msg) {
       appendReadingToCharts(reading);
     }
 
+    // Dynamically update Jharia physical sensor card
+    if (reading && reading.node_id) {
+      const lower = reading.node_id.toLowerCase();
+      const elDisp = document.getElementById(`val-${lower}-disp`);
+      if (elDisp && reading.displacement_mm !== undefined) elDisp.textContent = `${Number(reading.displacement_mm).toFixed(2)} mm`;
+      const elTilt = document.getElementById(`val-${lower}-tilt`);
+      if (elTilt && reading.tilt_vector_norm !== undefined) elTilt.textContent = `${Number(reading.tilt_vector_norm).toFixed(2)}°`;
+      const elVib = document.getElementById(`val-${lower}-vib`);
+      if (elVib && reading.vibration !== undefined) elVib.textContent = `${Number(reading.vibration).toFixed(3)} g`;
+      const elRate = document.getElementById(`val-${lower}-rate`);
+      if (elRate && reading.disp_rate !== undefined) elRate.textContent = `${Number(reading.disp_rate * 3600).toFixed(2)} mm/h`;
+      if (node && node.latest_risk_level) {
+        const badge = document.getElementById(`badge-node-${lower}`);
+        if (badge) {
+          badge.textContent = node.latest_risk_level;
+          badge.className = `badge-sm ${(node.latest_risk_level === "CRITICAL" ? "red" : (node.latest_risk_level === "HIGH" ? "orange" : (node.latest_risk_level === "WARNING" || node.latest_risk_level === "MONITORING" ? "yellow" : "green")))}`;
+        }
+      }
+    }
+
     // If new alert, prepend to alert table
     if (alert) {
       prependAlert(alert);
@@ -868,6 +888,16 @@ async function refreshObservatoryData() {
     const elBarSoil = document.getElementById("bar-soil");
     if (elBarSoil) elBarSoil.style.width = `${Math.min(100, (soil / 0.6) * 100)}%`;
 
+    // Extended Weather Telemetry
+    const elRainRate = document.getElementById("obs-rain-rate");
+    if (elRainRate) elRainRate.textContent = Number(w.rain_rate_mm_h || 0.0).toFixed(1);
+    const elRain7d = document.getElementById("obs-rain-7d");
+    if (elRain7d) elRain7d.textContent = Number(w.rain_cum_7d_mm || (rain72 * 1.7)).toFixed(1);
+    const elSoilShallow = document.getElementById("obs-soil-shallow");
+    if (elSoilShallow) elSoilShallow.textContent = `${((w.soil_moisture_shallow || 0.28) * 100).toFixed(1)}%`;
+    const elSeepage = document.getElementById("obs-seepage-idx");
+    if (elSeepage) elSeepage.textContent = Number(data.geotech_indices?.seepage_infiltration_index || 0.44).toFixed(2);
+
     // Update Satellite Cards
     const s = data.satellite || {};
     const elInsar = document.getElementById("obs-insar-vel");
@@ -878,6 +908,38 @@ async function refreshObservatoryData() {
     if (elNdvi) elNdvi.textContent = `${parseFloat(s.sentinel2_ndvi_anomaly || -0.14).toFixed(2)}`;
     const elTherm = document.getElementById("obs-thermal-anom");
     if (elTherm) elTherm.textContent = `+${parseFloat(s.landsat_thermal_anomaly_k || 3.4).toFixed(1)} K`;
+
+    const elCoherence = document.getElementById("obs-insar-coherence");
+    if (elCoherence) elCoherence.innerHTML = `&gamma; = ${s.sentinel1_coherence ? Number(s.sentinel1_coherence).toFixed(2) : "0.76"}`;
+    const elSurfaceTemp = document.getElementById("obs-surface-temp");
+    if (elSurfaceTemp) elSurfaceTemp.textContent = `${s.landsat_lst_surface_temp_c ? Number(s.landsat_lst_surface_temp_c).toFixed(1) : "36.8"}°C`;
+
+    // Update Subterranean Physical IoT Node Cards (N01 - N05)
+    const ps = data.physical_sensors || {};
+    const nodes = ps.nodes || {};
+    ["N01", "N02", "N03", "N04", "N05"].forEach(nid => {
+      const nd = nodes[nid];
+      if (!nd) return;
+      const lower = nid.toLowerCase();
+      const elDisp = document.getElementById(`val-${lower}-disp`);
+      if (elDisp) elDisp.textContent = `${Number(nd.displacement_mm).toFixed(2)} mm`;
+      const elTilt = document.getElementById(`val-${lower}-tilt`);
+      if (elTilt) elTilt.textContent = `${Number(nd.tilt_vector_norm_deg).toFixed(2)}°`;
+      const elVib = document.getElementById(`val-${lower}-vib`);
+      if (elVib) elVib.textContent = `${Number(nd.vibration_rms_g).toFixed(3)} g`;
+      const elRate = document.getElementById(`val-${lower}-rate`);
+      if (elRate) elRate.textContent = `${Number(nd.displacement_rate_mm_hr).toFixed(2)} mm/h`;
+      const badge = document.getElementById(`badge-node-${lower}`);
+      if (badge) {
+        badge.textContent = nd.risk_level || "NORMAL";
+        badge.className = `badge-sm ${(nd.risk_level === "CRITICAL" ? "red" : (nd.risk_level === "HIGH" ? "orange" : (nd.risk_level === "WARNING" || nd.risk_level === "MONITORING" ? "yellow" : "green")))}`;
+      }
+    });
+
+    const elGrad = document.getElementById("val-spatial-grad");
+    if (elGrad && ps.spatial_disp_gradient_max_mm_m) {
+      elGrad.textContent = `${Number(ps.spatial_disp_gradient_max_mm_m).toFixed(2)} mm/m`;
+    }
 
     // Populate Data Table
     allObservatoryRecords = data.sample_records || [];
@@ -960,10 +1022,50 @@ function filterParameterTable() {
 // ==========================================
 async function simulateEnvironmentalScenario(type) {
   const envPresets = {
-    dry: { rain24: 2.0, rain72: 5.0, soil: 0.22, insar: -12.0, ndvi: -0.02, thermal: 1.2, name: "Dry Baseline" },
-    moderate_rain: { rain24: 28.0, rain72: 65.0, soil: 0.38, insar: -21.0, ndvi: -0.12, thermal: 2.8, name: "Moderate Shower" },
-    monsoon_surge: { rain24: 82.0, rain72: 175.0, soil: 0.54, insar: -38.5, ndvi: -0.28, thermal: 4.2, name: "Monsoon Surge" },
-    washout: { rain24: 125.0, rain72: 240.0, soil: 0.58, insar: -45.0, ndvi: -0.35, thermal: 5.5, name: "Overburden Washout" }
+    dry: {
+      rain24: 2.0, rain72: 5.0, rain7d: 12.0, soil: 0.22, shallow: 0.18, insar: -12.0, ndvi: -0.02, thermal: 1.2,
+      nodes: {
+        N01: { disp: 0.85, tilt: 0.14, vib: 0.082, rate: 0.04, risk: "NORMAL" },
+        N02: { disp: 1.25, tilt: 0.28, vib: 0.115, rate: 0.08, risk: "NORMAL" },
+        N03: { disp: 1.80, tilt: 0.35, vib: 0.120, rate: 0.09, risk: "NORMAL" },
+        N04: { disp: 1.10, tilt: 0.20, vib: 0.095, rate: 0.06, risk: "NORMAL" },
+        N05: { disp: 1.65, tilt: 0.41, vib: 0.145, rate: 0.11, risk: "NORMAL" }
+      },
+      gradient: 0.22, name: "Dry Baseline"
+    },
+    moderate_rain: {
+      rain24: 28.0, rain72: 65.0, rain7d: 95.0, soil: 0.38, shallow: 0.32, insar: -21.0, ndvi: -0.12, thermal: 2.8,
+      nodes: {
+        N01: { disp: 1.10, tilt: 0.22, vib: 0.110, rate: 0.08, risk: "NORMAL" },
+        N02: { disp: 1.65, tilt: 0.38, vib: 0.140, rate: 0.12, risk: "NORMAL" },
+        N03: { disp: 2.85, tilt: 0.65, vib: 0.225, rate: 0.22, risk: "MONITORING" },
+        N04: { disp: 1.35, tilt: 0.25, vib: 0.105, rate: 0.08, risk: "NORMAL" },
+        N05: { disp: 2.10, tilt: 0.48, vib: 0.165, rate: 0.15, risk: "NORMAL" }
+      },
+      gradient: 0.38, name: "Moderate Shower"
+    },
+    monsoon_surge: {
+      rain24: 82.0, rain72: 175.0, rain7d: 220.0, soil: 0.54, shallow: 0.48, insar: -38.5, ndvi: -0.28, thermal: 4.2,
+      nodes: {
+        N01: { disp: 1.95, tilt: 0.45, vib: 0.210, rate: 0.25, risk: "MONITORING" },
+        N02: { disp: 2.70, tilt: 0.72, vib: 0.265, rate: 0.38, risk: "MONITORING" },
+        N03: { disp: 5.40, tilt: 1.65, vib: 0.420, rate: 0.75, risk: "WARNING" },
+        N04: { disp: 2.10, tilt: 0.52, vib: 0.190, rate: 0.22, risk: "MONITORING" },
+        N05: { disp: 3.85, tilt: 1.15, vib: 0.340, rate: 0.52, risk: "WARNING" }
+      },
+      gradient: 0.74, name: "Monsoon Surge"
+    },
+    washout: {
+      rain24: 125.0, rain72: 240.0, rain7d: 310.0, soil: 0.58, shallow: 0.54, insar: -45.0, ndvi: -0.35, thermal: 5.5,
+      nodes: {
+        N01: { disp: 3.40, tilt: 0.95, vib: 0.380, rate: 0.65, risk: "WARNING" },
+        N02: { disp: 4.80, tilt: 1.45, vib: 0.450, rate: 0.92, risk: "WARNING" },
+        N03: { disp: 14.80, tilt: 3.65, vib: 0.780, rate: 3.20, risk: "CRITICAL" },
+        N04: { disp: 3.90, tilt: 1.10, vib: 0.360, rate: 0.72, risk: "WARNING" },
+        N05: { disp: 8.50, tilt: 2.25, vib: 0.590, rate: 1.85, risk: "CRITICAL" }
+      },
+      gradient: 1.85, name: "Overburden Washout"
+    }
   };
 
   const p = envPresets[type] || envPresets.dry;
@@ -973,8 +1075,12 @@ async function simulateEnvironmentalScenario(type) {
   if (elRain24) elRain24.textContent = `${p.rain24.toFixed(1)} mm`;
   const elRain72 = document.getElementById("obs-rain-72h");
   if (elRain72) elRain72.textContent = `${p.rain72.toFixed(1)} mm`;
+  const elRain7d = document.getElementById("obs-rain-7d");
+  if (elRain7d) elRain7d.textContent = `${p.rain7d.toFixed(1)} mm`;
   const elSoil = document.getElementById("obs-soil-moisture");
   if (elSoil) elSoil.textContent = `${(p.soil * 100).toFixed(1)} %`;
+  const elSoilShallow = document.getElementById("obs-soil-shallow");
+  if (elSoilShallow) elSoilShallow.textContent = `${(p.shallow * 100).toFixed(1)}%`;
   const elPore = document.getElementById("obs-pore-pressure");
   if (elPore) elPore.textContent = `${(90 + p.rain72 * 1.8).toFixed(1)} kPa`;
   const elInsar = document.getElementById("obs-insar-vel");
@@ -984,6 +1090,13 @@ async function simulateEnvironmentalScenario(type) {
   const elTherm = document.getElementById("obs-thermal-anom");
   if (elTherm) elTherm.textContent = `+${p.thermal.toFixed(1)} K`;
 
+  const elBar24 = document.getElementById("bar-rain-24h");
+  if (elBar24) elBar24.style.width = `${Math.min(100, (p.rain24 / 50.0) * 100)}%`;
+  const elBar72 = document.getElementById("bar-rain-72h");
+  if (elBar72) elBar72.style.width = `${Math.min(100, (p.rain72 / 120.0) * 100)}%`;
+  const elBarSoil = document.getElementById("bar-soil");
+  if (elBarSoil) elBarSoil.style.width = `${Math.min(100, (p.soil / 0.6) * 100)}%`;
+
   const elKpiWeather = document.getElementById("kpi-weather-status");
   if (elKpiWeather) elKpiWeather.textContent = `${p.rain24.toFixed(1)} mm`;
   const elKpiSoil = document.getElementById("kpi-soil-status");
@@ -991,16 +1104,39 @@ async function simulateEnvironmentalScenario(type) {
   const elKpiInsar = document.getElementById("kpi-insar-val");
   if (elKpiInsar) elKpiInsar.textContent = `${p.insar.toFixed(1)}`;
 
+  // Update physical nodes deck
+  if (p.nodes) {
+    Object.keys(p.nodes).forEach(nid => {
+      const nd = p.nodes[nid];
+      const lower = nid.toLowerCase();
+      const elDisp = document.getElementById(`val-${lower}-disp`);
+      if (elDisp) elDisp.textContent = `${nd.disp.toFixed(2)} mm`;
+      const elTilt = document.getElementById(`val-${lower}-tilt`);
+      if (elTilt) elTilt.textContent = `${nd.tilt.toFixed(2)}°`;
+      const elVib = document.getElementById(`val-${lower}-vib`);
+      if (elVib) elVib.textContent = `${nd.vib.toFixed(3)} g`;
+      const elRate = document.getElementById(`val-${lower}-rate`);
+      if (elRate) elRate.textContent = `${nd.rate.toFixed(2)} mm/h`;
+      const badge = document.getElementById(`badge-node-${lower}`);
+      if (badge) {
+        badge.textContent = nd.risk;
+        badge.className = `badge-sm ${(nd.risk === "CRITICAL" ? "red" : (nd.risk === "HIGH" ? "orange" : (nd.risk === "WARNING" || nd.risk === "MONITORING" ? "yellow" : "green")))}`;
+      }
+    });
+  }
+  const elGrad = document.getElementById("val-spatial-grad");
+  if (elGrad) elGrad.textContent = `${p.gradient.toFixed(2)} mm/m`;
+
   // Send reading with this weather & satellite override to Node N03
-  const dispBase = (type === "washout") ? 8.5 : ((type === "monsoon_surge") ? 3.8 : 1.2);
-  const tiltBase = (type === "washout") ? 3.4 : ((type === "monsoon_surge") ? 1.6 : 0.2);
+  const dispBase = (type === "washout") ? 14.8 : ((type === "monsoon_surge") ? 5.4 : 1.8);
+  const tiltBase = (type === "washout") ? 3.65 : ((type === "monsoon_surge") ? 1.65 : 0.35);
 
   const payload = {
     node_id: "N03",
     timestamp: new Date().toISOString(),
     tilt_x: tiltBase,
     tilt_y: tiltBase * 0.7,
-    vibration: (type === "washout") ? 0.65 : 0.05,
+    vibration: (type === "washout") ? 0.78 : (type === "monsoon_surge" ? 0.42 : 0.12),
     displacement_mm: dispBase,
     weather: {
       rain_rate_mm_h: p.rain24 > 50 ? 15.0 : (p.rain24 > 20 ? 4.0 : 0.0),

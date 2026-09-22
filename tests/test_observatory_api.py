@@ -28,6 +28,17 @@ async def test_moonidih_observatory_endpoint():
         assert "sentinel2_ndvi_anomaly" in data["satellite"]
         assert "landsat_thermal_anomaly_k" in data["satellite"]
         assert "geotech_indices" in data
+        assert "physical_sensors" in data
+        assert "nodes" in data["physical_sensors"]
+        assert "N03" in data["physical_sensors"]["nodes"]
+        assert "sensor_specs" in data
+        assert "displacement" in data["sensor_specs"]
+        assert "satellite_specs" in data
+        assert "sentinel_1_insar" in data["satellite_specs"]
+        assert "weather_specs" in data
+        assert "accuracy_benchmarks" in data
+        assert "full_multimodal_ai_model_d" in data["accuracy_benchmarks"]
+        assert data["accuracy_benchmarks"]["full_multimodal_ai_model_d"]["accuracy"] == 98.35
         assert "sample_records" in data
         assert isinstance(data["sample_records"], list)
 
